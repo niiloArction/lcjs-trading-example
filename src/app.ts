@@ -159,24 +159,32 @@ if ( chartConfigOHLC.show ) {
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
         seriesBollinger = chartOHLC.addAreaRangeSeries()
+            // Disable data-cleaning.
+            .setMaxPointCount( undefined )
     }
     if ( chartConfigOHLC.sma.show ) {
         // Create SMA Series.
         seriesSMA = chartOHLC.addLineSeries({
             dataPattern: DataPatterns.horizontalProgressive
         })
+            // Disable data-cleaning.
+            .setMaxPointCount( undefined )
     }
     if ( chartConfigOHLC.ema.show ) {
         // Create EMA Series.
         seriesEMA = chartOHLC.addLineSeries({
             dataPattern: DataPatterns.horizontalProgressive
         })
+            // Disable data-cleaning.
+            .setMaxPointCount( undefined )
     }
     // Create OHLC Series.
     seriesOHLC = chartOHLC.addOHLCSeries({
         positiveFigure: OHLCFigures.Candlestick,
         negativeFigure: OHLCFigures.Candlestick
     })
+        // Disable data-cleaning.
+        .setMaxPointsCount( undefined )
 }
 //#endregion
 
@@ -220,6 +228,8 @@ if ( chartConfigVolume.show ) {
     seriesVolume = chartVolume.addAreaSeries({
         type: AreaSeriesTypes.Positive
     })
+        // Disable data-cleaning.
+        .setMaxPointCount( undefined )
 }
 //#endregion
 
@@ -264,6 +274,8 @@ if ( chartConfigRSI.show ) {
     seriesRSI = chartRSI.addLineSeries({
         dataPattern: DataPatterns.horizontalProgressive
     })
+        // Disable data-cleaning.
+        .setMaxPointCount( undefined )
 
     // Create RSI ticks with CustomTicks, to better indicate common thresholds of 30% and 70%.
     axisY
@@ -495,7 +507,7 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
 //#endregion
 
-//#region ----- Subscribe to data-search events for searching and rendering data -----
+//#region ----- REST logic for fetching data -----
 
 // Function that handles event where data search failed.
 const dataSearchFailed = ( searchSymbol: string ) => {
@@ -520,7 +532,7 @@ const searchData = ( searchSymbol: string ) => {
          *
          * YYYY-MM-DD
          */
-        const date_from: string = '2019-01-01'
+        const date_from: string = '1980-01-01'
         /**
          * Sorting basis.
          */
