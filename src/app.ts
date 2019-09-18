@@ -45,19 +45,6 @@ enum DataSources { WorldTradingData }
 const dataSource = DataSources.WorldTradingData
 let dataSourceApiToken: string | undefined
 
-/**
- * Choose a DateTime origin. LCJS uses this to optimize DateTime Axis performance.
- * A good reference is value is the expected start Date of used data.
- */
-const dateTimeOrigin = new Date(
-    // Year
-    2019,
-    // Month [0, 11]
-    0,
-    // Day [1, 31]
-    1
-)
-
 //#endregion
 
 //#region ----- Read worldtradingdata.com API token from local file 'wtd-token.json' -----
@@ -118,7 +105,6 @@ const dashboard = lightningChart().Dashboard({
 })
 //#endregion
 
-const xAxisTickStrategy = AxisTickStrategies.DateTime( dateTimeOrigin )
 //#region ----- Create OHLC Chart -----
 let chartOHLC: ChartXY | undefined
 let seriesOHLC: OHLCSeriesTraditional<OHLCCandleStick, OHLCCandleStick> | undefined
@@ -132,10 +118,7 @@ if ( chartConfigOHLC.show ) {
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigOHLC ) ),
-        rowSpan: chartConfigOHLC.verticalSpans,
-        chartXYOptions: {
-            defaultAxisXTickStrategy: xAxisTickStrategy
-        }
+        rowSpan: chartConfigOHLC.verticalSpans
     })
     
     // Create custom title attached to the top of Y Axis.
@@ -200,7 +183,6 @@ if ( chartConfigVolume.show ) {
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigVolume ) ),
         rowSpan: chartConfigVolume.verticalSpans,
         chartXYOptions: {
-            defaultAxisXTickStrategy: xAxisTickStrategy,
             // Volume data has a lot of quantity, so better select Units (K, M, etc.).
             defaultAxisYTickStrategy: AxisTickStrategies.NumericWithUnits
         }
@@ -246,10 +228,7 @@ if ( chartConfigRSI.show ) {
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigRSI ) ),
-        rowSpan: chartConfigRSI.verticalSpans,
-        chartXYOptions: {
-            defaultAxisXTickStrategy: xAxisTickStrategy
-        }
+        rowSpan: chartConfigRSI.verticalSpans
     })
 
     // Create custom title attached to the top of Y Axis.
@@ -388,15 +367,11 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     // Get starting Date from first item.
     const dataKeys = Object.keys( data.history )
-    // DateTime values must be subtracted 'dateTimeOrigin' for Axes to show Date values correctly.
-    const dateTimeOriginTime = dateTimeOrigin.getTime()
-
     const dataKeysLen = dataKeys.length
-    for ( let i = 0; i < dataKeysLen; i ++ ) {
-        const key = dataKeys[ i ]
+    // Index data-values starting from x = 0.
+    for ( let x = 0; x < dataKeysLen; x ++ ) {
+        const key = dataKeys[ x ]
         const stringValues = data.history[ key ]
-        // Date-key is UTC, and can be directly transformed to Date.
-        const x = new Date( key ).getTime() - dateTimeOriginTime
         const o = Number( stringValues.open )
         const h = Number( stringValues.high )
         const l = Number( stringValues.low )
