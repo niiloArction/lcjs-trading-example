@@ -1,6 +1,12 @@
-# LightningChart<sup>&#174;</sup> JS TypeScript usage example
+# LightningChart<sup>&#174;</sup> Trading example
 
-This repository showcases how to use the LightningChart<sup>&#174;</sup> JS charting library with TypeScript and WebPack.
+Trading chart created using LightningChart JS and worldtradingdata.com API. Fetches requested stock data, and renders a variety of analysis tools, such as:
+- OHLC.
+- Simple Moving Average.
+- Exponential Moving Average.
+- Bollinger Bands.
+- Volume.
+- Relative Strength Index .
 
 More information about LightningChart<sup>&#174;</sup> JS can be found from our website, https://www.arction.com/lightningchart-js/.
 

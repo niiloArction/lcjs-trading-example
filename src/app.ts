@@ -568,8 +568,6 @@ const searchData = ( searchSymbol: string ) => {
                     dataSearchFailed( searchSymbol )
                 } else {
                     console.log('Received data from worldtradingdata.com')
-                    console.log(data)
-    
                     renderOHLCData(data)
                 }
             })
@@ -816,20 +814,22 @@ for ( let i = 0; i < charts.length; i ++ ) {
     }
 }
 for ( const title of chartTitles )
-    title
-        .setTextFillStyle( solidFills.get( AppColor.Blue ) )
+    if ( title )
+        title
+            .setTextFillStyle( solidFills.get( AppColor.Blue ) )
 
 // Push all charts left sides equal distance away from left border.
 // TODO: Is there any way to do this without adding invisible custom ticks?
 for ( const chart of charts )
-    chart.getDefaultAxisY().addCustomTick()
-        .setMarker(( marker ) => marker
-            .setPointerLength( 0 )
-            .setTextFillStyle( emptyFill )
-            // Padding is used to control distance.
-            .setPadding({ left: 60 })
-        )
-        .setGridStrokeLength( 0 )
+    if ( chart )
+        chart.getDefaultAxisY().addCustomTick()
+            .setMarker(( marker ) => marker
+                .setPointerLength( 0 )
+                .setTextFillStyle( emptyFill )
+                // Padding is used to control distance.
+                .setPadding({ left: 60 })
+            )
+            .setGridStrokeLength( 0 )
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
 charts[0].setPadding({ top: 30 })
@@ -996,7 +996,3 @@ if ( seriesBollinger )
         .setCursorEnabled( false )
 
 //#endregion
-
-// Development configuration.
-;(<HTMLInputElement>domElements.get( domElementIDs.dataSearchInput )).value = 'AAPL'
-
