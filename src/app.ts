@@ -532,7 +532,7 @@ const searchData = ( searchSymbol: string ) => {
          *
          * YYYY-MM-DD
          */
-        const date_from: string = '1980-01-01'
+        const date_from: string = '2010-01-01'
         /**
          * Sorting basis.
          */
@@ -754,9 +754,21 @@ for ( let i = 0; i < charts.length; i ++ ) {
             .setTitleFillStyle( emptyFill )
             .setTitleMarginTop( 0 )
             .setTitleMarginBottom( 0 )
-            .setPadding({ top: 10 })
+            .setPadding({ top: 10, left: 0 })
         }
 }
+
+// Push all charts left sides equal distance away from left border.
+// TODO: Is there any way to do this without adding invisible custom ticks?
+for ( const chart of charts )
+    chart.getDefaultAxisY().addCustomTick()
+        .setMarker(( marker ) => marker
+            .setPointerLength( 0 )
+            .setTextFillStyle( emptyFill )
+            // Padding is used to control distance.
+            .setPadding({ left: 60 })
+        )
+        .setGridStrokeLength( 0 )
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
 charts[0].setPadding({ top: 30 })
@@ -832,8 +844,6 @@ tickRSIThresholdHigh
 // TODO: ResultTableFormatters.
 
 //#endregion
-
-
 
 // Development configuration.
 ;(<HTMLInputElement>domElements.get( domElementIDs.dataSearchInput )).value = 'AAPL'
