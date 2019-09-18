@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, emptyTick, VisibleTicks, emptyLine } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -27,7 +27,7 @@ const chartConfigOHLC = {
     }
 }
 const chartConfigVolume = {
-    show: false,
+    show: true,
     verticalSpans: 1
 }
 const chartConfigRSI = {
@@ -39,6 +39,19 @@ const chartConfigRSI = {
 enum DataSources { WorldTradingData }
 const dataSource = DataSources.WorldTradingData
 let dataSourceApiToken: string | undefined
+
+/**
+ * Choose a DateTime origin. LCJS uses this to optimize DateTime Axis performance.
+ * A good reference is value is the expected start Date of used data.
+ */
+const dateTimeOrigin = new Date(
+    // Year
+    2019,
+    // Month [0, 11]
+    0,
+    // Day [1, 31]
+    1
+)
 
 //#endregion
 
@@ -142,6 +155,17 @@ if ( chartConfigOHLC.show ) {
 
 //#region ----- Create Volume Chart -----
 let chartVolume: ChartXY | undefined
+
+if ( chartConfigVolume.show ) {
+    chartVolume = dashboard.createChartXY({
+        columnIndex: 0,
+        columnSpan: 1,
+        rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigVolume ) ),
+        rowSpan: chartConfigVolume.verticalSpans
+    })
+        // Remove title.
+        .setTitleFillStyle( emptyFill )
+}
 //#endregion
 
 //#region ----- Create RSI Chart -----
@@ -149,6 +173,45 @@ let chartRSI: ChartXY | undefined
 //#endregion
 
 const charts = [ chartOHLC, chartVolume, chartRSI ]
+// Find lowest shown Chart index.
+const lowestShownChartIndex = chartConfigs.reduce(
+    (prev, chartConfig, i) => chartConfig.show ? i : prev,
+    -1
+)
+
+// Configure Axes of Charts.
+let dateTimeAxis: Axis
+
+for ( let i = 0; i < charts.length; i ++ ) {
+    const chart = charts[i]
+    if ( chart !== undefined ) {
+        const axisX = chart.getDefaultAxisX()
+        const axisY = chart.getDefaultAxisY()
+        if ( i === lowestShownChartIndex ) {
+            // This Chart is the lowest one, it will contain a shared DateTime Axis.
+            dateTimeAxis = chart.addAxisX(
+                false,
+                AxisTickStrategies.DateTime( dateTimeOrigin )
+            )
+            // Remove default X Axis.
+            chart.getDefaultAxisX().dispose()
+        } else {
+            // This Charts X Axis will be hidden, and configured to scroll according to the shared DateTime Axis.
+            axisX
+                .setTickStyle((ticks: VisibleTicks) => ticks
+                    .setLabelFillStyle( emptyFill )
+                    .setTickLength( 0 )
+                )
+                .setStrokeStyle( emptyLine )
+                // TODO: Why cant Nibs be hidden?
+                // .setNibStyle( emptyLine )
+                // Disable scrolling.
+                .setScrollStrategy( undefined )
+        }
+
+    }
+}
+
 
 //#endregion
 
@@ -180,10 +243,15 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     // Measure operation time.
     const tStart = window.performance.now()
-    for ( const key in data.history ) {
-        const stringValues = data.history[key]
-        // 'key' = String UTC Date. Should work directly with JavaScript Date().
-        const x = new Date( key ).getTime()
+
+    // Get starting Date from first item.
+    const dataKeys = Object.keys( data.history )
+    const startDate = new Date( dataKeys[0] )
+
+    const dataKeysLen = dataKeys.length
+    // Index data values starting from x = 0.
+    for ( let x = 0; x < dataKeysLen; x ++ ) {
+        const stringValues = data.history[ dataKeys[ x ] ]
         const o = Number( stringValues.open )
         const h = Number( stringValues.high )
         const l = Number( stringValues.low )
@@ -198,6 +266,9 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#endregion
 
     //#region ----- Render data -----
+    // Configure DateTime Axis.
+
+
     if ( seriesOHLC ) {
         seriesOHLC
             .clear()
@@ -282,7 +353,7 @@ domElements.get( domElementIDs.dataSearchActivate )
 //#region ----- Style application -----
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
-charts[0].setPadding({ top: 40 })
+charts[0].setPadding({ top: 30 })
 
 //#endregion
 
