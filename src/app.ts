@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -125,6 +125,7 @@ let seriesOHLC: OHLCSeriesTraditional<OHLCCandleStick, OHLCCandleStick> | undefi
 let seriesSMA: LineSeries | undefined
 let seriesEMA: LineSeries | undefined
 let seriesBollinger: AreaRangeSeries | undefined
+let chartOHLCTitle: UITextBox | undefined
 
 if ( chartConfigOHLC.show ) {
     chartOHLC = dashboard.createChartXY({
@@ -136,7 +137,24 @@ if ( chartConfigOHLC.show ) {
             defaultAxisXTickStrategy: xAxisTickStrategy
         }
     })
-        .setTitle('')
+    
+    // Create custom title attached to the top of Y Axis.
+    const axisX = chartOHLC.getDefaultAxisX()
+    const axisY = chartOHLC.getDefaultAxisY()
+    const _chartOHLCTitle = chartOHLC.addUIElement(
+        UIElementBuilders.TextBox,
+        {
+            x: axisX.scale,
+            y: axisY.scale
+        }
+    )
+        .setText( '' )
+        .setPosition({ x: 0, y: 10 })
+        .setOrigin( UIOrigins.LeftTop )
+    chartOHLCTitle = _chartOHLCTitle
+    // Follow Axis interval changes to keep title positioned where it should be.
+    axisX.onScaleChange((start, end) => _chartOHLCTitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
+    axisY.onScaleChange((start, end) => _chartOHLCTitle.setPosition({ x: axisX.scale.getInnerStart(), y: end }))
 
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
@@ -165,6 +183,7 @@ if ( chartConfigOHLC.show ) {
 //#region ----- Create Volume Chart -----
 let chartVolume: ChartXY | undefined
 let seriesVolume: AreaSeries | undefined
+let chartVolumeTitle: UITextBox | undefined
 
 if ( chartConfigVolume.show ) {
     chartVolume = dashboard.createChartXY({
@@ -173,10 +192,29 @@ if ( chartConfigVolume.show ) {
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigVolume ) ),
         rowSpan: chartConfigVolume.verticalSpans,
         chartXYOptions: {
-            defaultAxisXTickStrategy: xAxisTickStrategy
+            defaultAxisXTickStrategy: xAxisTickStrategy,
+            // Volume data has a lot of quantity, so better select Units (K, M, etc.).
+            defaultAxisYTickStrategy: AxisTickStrategies.NumericWithUnits
         }
     })
-        .setTitle('Volume')
+
+    // Create custom title attached to the top of Y Axis.
+    const axisX = chartVolume.getDefaultAxisX()
+    const axisY = chartVolume.getDefaultAxisY()
+    const _chartVolumeTitle = chartVolume.addUIElement(
+        UIElementBuilders.TextBox,
+        {
+            x: axisX.scale,
+            y: axisY.scale
+        }
+    )
+        .setText( 'Volume' )
+        .setPosition({ x: 0, y: 10 })
+        .setOrigin( UIOrigins.LeftTop )
+    chartVolumeTitle = _chartVolumeTitle
+    // Follow Axis interval changes to keep title positioned where it should be.
+    axisX.onScaleChange((start, end) => _chartVolumeTitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
+    axisY.onScaleChange((start, end) => _chartVolumeTitle.setPosition({ x: axisX.scale.getInnerStart(), y: end }))
 
     // Create Volume Series.
     seriesVolume = chartVolume.addAreaSeries({
@@ -188,6 +226,7 @@ if ( chartConfigVolume.show ) {
 //#region ----- Create RSI Chart -----
 let chartRSI: ChartXY | undefined
 let seriesRSI: LineSeries | undefined
+let chartRSITitle: UITextBox | undefined
 let ticksRSI: CustomTick[] = []
 let tickRSIThresholdLow: CustomTick | undefined
 let tickRSIThresholdHigh: CustomTick | undefined
@@ -202,7 +241,24 @@ if ( chartConfigRSI.show ) {
             defaultAxisXTickStrategy: xAxisTickStrategy
         }
     })
-        .setTitle('RSI')
+
+    // Create custom title attached to the top of Y Axis.
+    const axisX = chartRSI.getDefaultAxisX()
+    const axisY = chartRSI.getDefaultAxisY()
+    const _chartRSITitle = chartRSI.addUIElement(
+        UIElementBuilders.TextBox,
+        {
+            x: axisX.scale,
+            y: axisY.scale
+        }
+    )
+        .setText( 'RSI' )
+        .setPosition({ x: 0, y: 10 })
+        .setOrigin( UIOrigins.LeftTop )
+        chartRSITitle = _chartRSITitle
+    // Follow Axis interval changes to keep title positioned where it should be.
+    axisX.onScaleChange((start, end) => _chartRSITitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
+    axisY.onScaleChange((start, end) => _chartRSITitle.setPosition({ x: axisX.scale.getInnerStart(), y: end }))
 
     // Create RSI Series.
     seriesRSI = chartRSI.addLineSeries({
@@ -210,7 +266,7 @@ if ( chartConfigRSI.show ) {
     })
 
     // Create RSI ticks with CustomTicks, to better indicate common thresholds of 30% and 70%.
-    const axisY = chartRSI.getDefaultAxisY()
+    axisY
         .setTickStyle( emptyTick )
         // RSI interval always from 0 to 100.
         .setInterval( 0, 100 )
@@ -432,8 +488,8 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     // Fit new data to X view (automatic X scrolling is disabled in application).
     masterAxis.fit()
 
-    // Set title of top-most Chart to show name data.
-    charts[ highestShownChartIndex ].setTitle( data.name )
+    // Set title of OHLC Chart to show name data.
+    chartOHLCTitle.setText( data.name )
 
 }
 
@@ -682,18 +738,16 @@ for ( let i = 0; i < charts.length; i ++ ) {
     const chart = charts[i]
     if ( chart ) {
         chart
-            .setTitleFont((font) => font
-                // Highest Chart, which shows name of data, has bigger font.
-                .setSize( i === highestShownChartIndex ? 20 : 10 )
-            )
-            .setTitleMarginTop( 4 )
-            .setTitleMarginBottom( 2 )
-            .setPadding({ top: 0 })
+            // No default titles.
+            .setTitleFillStyle( emptyFill )
+            .setTitleMarginTop( 0 )
+            .setTitleMarginBottom( 0 )
+            .setPadding({ top: 10 })
         }
 }
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
-// charts[0].setPadding({ top: 20 })
+charts[0].setPadding({ top: 30 })
 
 // Style Axes.
 for ( let i = 0; i < charts.length; i ++ ) {
@@ -727,16 +781,23 @@ for ( let i = 0; i < charts.length; i ++ ) {
 }
 
 // Style Series.
+if ( seriesOHLC )
+    seriesOHLC
+        .setPositiveStyle((candlestick) => candlestick
+            .setBodyFillStyle( solidFills.get( AppColor.Green ) )
+            .setStrokeStyle( solidLines.get( AppColor.Green ).get( AppLineThickness.Thin ) )
+        )
+        .setNegativeStyle((candlestick) => candlestick
+            .setBodyFillStyle( solidFills.get( AppColor.Red ) )
+            .setStrokeStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thin ) )
+        )
+
 if ( seriesSMA )
     seriesSMA
-        .setStrokeStyle(( solidLine ) => solidLine
-            .setFillStyle( solidFills.get( AppColor.Purplish ) )
-        )
+        .setStrokeStyle( solidLines.get( AppColor.Purplish ).get( AppLineThickness.Thin ) )
 if ( seriesEMA )
     seriesEMA
-        .setStrokeStyle(( solidLine ) => solidLine
-            .setFillStyle( solidFills.get( AppColor.LightBlue ) )
-        )
+        .setStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
 if ( seriesBollinger )
     seriesBollinger
         .setHighFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
