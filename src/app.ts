@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -140,7 +140,7 @@ if ( chartConfigOHLC.show ) {
 
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
-
+        seriesBollinger = chartOHLC.addAreaRangeSeries()
     }
     if ( chartConfigOHLC.sma.show ) {
         // Create SMA Series.
@@ -270,8 +270,10 @@ const renderOHLCData = ( data: AppDataFormat ) => {
         xohlcValues.push([x, o, h, l, c])
         volumeValues.push({ x, y: volume })
     }
+    const xohlcValuesLen = xohlcValues.length
+    const volumeValuesLen = volumeValues.length
     console.log(`Prepared data in ${((window.performance.now() - tStart) / 1000).toFixed(1)} s`)
-    console.log(`${xohlcValues.length} XOHLC values, ${volumeValues.length} Volume values.`)
+    console.log(`${xohlcValuesLen} XOHLC values, ${volumeValuesLen} Volume values.`)
     //#endregion
 
     //#region ----- Render data -----
@@ -286,7 +288,7 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#region SMA.
     if ( seriesSMA ) {
         // Compute SMA values from XOHLC values using data-analysis library.
-        const smaValues = calculateSimpleMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        const smaValues = simpleMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
         seriesSMA
             .clear()
             .add( smaValues )
@@ -296,7 +298,7 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#region EMA.
     if ( seriesEMA ) {
         // Compute EMA values from XOHLC values using data-analysis library.
-        const emaValues = calculateExponentialMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        const emaValues = exponentialMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
         seriesEMA
             .clear()
             .add( emaValues )
@@ -304,7 +306,26 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#endregion
 
     //#region Bollinger.
-    
+    if ( seriesBollinger ) {
+        // Compute SMA values for Bollinger. Note that we use a separate averagingFrameLength from above SMA.
+        const smaValues = simpleMovingAverage( xohlcValues, chartConfigOHLC.bollinger.averagingFrameLength )
+        // Compute standard deviation.
+        const standardDeviation2 = 2 * standardDeviation( xohlcValues )
+        // Compute Bollinger band points (positive/negative).
+        const bollingerPoints: AreaPoint[] = []
+        const len = smaValues.length
+        for ( let i = 0; i < len; i ++ ) {
+            const sma = smaValues[i]
+            bollingerPoints.push({
+                position: sma.x,
+                high: sma.y + standardDeviation2,
+                low: sma.y - standardDeviation2
+            })
+        }
+        seriesBollinger
+            .clear()
+            .add( bollingerPoints )
+    }
     //#endregion
 
     //#region Volume
@@ -312,8 +333,7 @@ const renderOHLCData = ( data: AppDataFormat ) => {
         // To render Volume values as Histogram bars, map 'volumeValues' and add step values between data-points.
         const histogramBarValues: Point[] = []
         let prev: Point | undefined
-        const len = volumeValues.length
-        for ( let i = 0; i < len; i ++ ) {
+        for ( let i = 0; i < volumeValuesLen; i ++ ) {
             const cur = volumeValues[ i ]
             // Add step between previous value and cur value.
             if ( prev ) {
@@ -411,12 +431,12 @@ domElements.get( domElementIDs.dataSearchActivate )
 
 //#region ----- Data analysis tools TO BE MOVED TO NPM LIB -----
 /**
- * Calculate SMA values from XOHLC values.
+ * Calculate SMA values from XOHLC 'close' values.
  * @param   xohlcValues             Array of XOHLC values.
  * @param   averagingFrameLength    Length of averaging frame.
  * @return                          Array of SMA values. Length of this array is 'averagingFrameLength' - 1 less than 'xohlcValues'
  */
-const calculateSimpleMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
+const simpleMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
     const len = xohlcValues.length
     const result: Point[] = []
     const yValueBuffer: number[] = []
@@ -440,25 +460,26 @@ const calculateSimpleMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLengt
     return result
 }
 /**
- * Calculate EMA values from SMA values.
+ * Calculate EMA values from XOHLC 'close' values.
  * @param   xohlcValues             Array of XOHLC values.
  * @param   averagingFrameLength    Length of averaging frame.
  * @return                          Array of EMA values.  Length of this array is equal to xohlcValues.length - averagingFrameLength + 1
  */
-const calculateExponentialMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
+const exponentialMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
     const len = xohlcValues.length
     const result: Point[] = []
     const weighingMultiplier = 2 / ( averagingFrameLength + 1 )
 
     // Calculate initial previous EMA using SMA method.
-    let previousEMA: number = 0
     let i
+    let previousEMASum = 0
     for ( i = 0; i < averagingFrameLength; i ++ ) {
         const xohlc = xohlcValues[i]
         // Use 'close' value for SMA.
         const value = xohlc[4]
-        previousEMA += value / averagingFrameLength
+        previousEMASum += value
     }
+    let previousEMA: number = previousEMASum / averagingFrameLength
     for ( ; i < len; i ++ ) {
         const xohlc = xohlcValues[i]
         // Use 'close' value for EMA.
@@ -472,22 +493,58 @@ const calculateExponentialMovingAverage = ( xohlcValues: XOHLC[], averagingFrame
     }
     return result
 }
+/**
+ * Calculate standard deviation from XOHLC 'close' values.
+ * @param   xohlcValues             Array of XOHLC values.
+ * @return                          Standard deviation value.
+ */
+const standardDeviation = ( xohlcValues: XOHLC[] ): number => {
+    const len = xohlcValues.length
+    // Calculate average.
+    let sum = 0
+    for ( let i = 0; i < len; i ++ ) {
+        sum += xohlcValues[i][4]
+    }
+    const avg = sum / len
+    //
+    let sumSqDiff = 0
+    for ( let i = 0; i < len; i ++ ) {
+        const value = xohlcValues[i][4]
+        sumSqDiff += ( value - avg ) * ( value - avg )
+    }
+    return Math.sqrt( sumSqDiff / len )
+}
 
 
 //#endregion
 
 //#region ----- Style application -----
+// Manage Colors and derived Styles using Enums and Maps.
 enum AppColor {
     LightBlue,
+    DarkBlue,
+    DarkBlueTransparent,
     Purplish
 }
 const colors = new Map<AppColor, Color>()
 colors.set( AppColor.LightBlue, ColorRGBA( 162, 191, 244 ) )
+colors.set( AppColor.DarkBlue, ColorRGBA( 75, 99, 143 ) )
+colors.set( AppColor.DarkBlueTransparent, colors.get( AppColor.DarkBlue ).setA(120) )
 colors.set( AppColor.Purplish, ColorRGBA( 209, 44, 144 ) )
 
 
 const solidFills = new Map<AppColor, SolidFill>()
 colors.forEach((color, key) => solidFills.set( key, new SolidFill({ color }) ))
+
+enum AppLineThickness { Thin, Thick }
+const solidLines = new Map<AppColor, Map<AppLineThickness, SolidLine>>()
+colors.forEach((_, key) => {
+    const thicknessMap = new Map()
+    thicknessMap.set( AppLineThickness.Thin, new SolidLine({ thickness: 2, fillStyle: solidFills.get( key ) }) )
+    thicknessMap.set( AppLineThickness.Thick, new SolidLine({ thickness: 4, fillStyle: solidFills.get( key ) }) )
+    solidLines.set( key, thicknessMap )
+})
+
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
 charts[0].setPadding({ top: 30 })
@@ -529,12 +586,17 @@ if ( seriesSMA )
         .setStrokeStyle(( solidLine ) => solidLine
             .setFillStyle( solidFills.get( AppColor.Purplish ) )
         )
-
 if ( seriesEMA )
     seriesEMA
         .setStrokeStyle(( solidLine ) => solidLine
             .setFillStyle( solidFills.get( AppColor.LightBlue ) )
         )
+if ( seriesBollinger )
+    seriesBollinger
+        .setHighFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
+        .setLowFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
+        .setHighStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
+        .setLowStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
 
 // TODO: ResultTableFormatters.
 
