@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeries, OHLCSeriesTypes, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -164,8 +164,7 @@ interface StringOHLCWithVolume {
 interface AppDataFormat {
     name: string,
     /**
-     * 'history' is an object whose keys are Dates formatted as strings in format:
-     * YYYY-MM-DD.
+     * 'history' is an object whose keys are UTC Dates as Strings.
      * 
      * Each value is an OHLC value with an additional 'volume'-field.
      * Note that at this stage values are strings, not numbers! To use with LCJS they must be parsed to Numbers.
@@ -173,7 +172,39 @@ interface AppDataFormat {
     history: { [key: string]: StringOHLCWithVolume }
 }
 const renderOHLCData = ( data: AppDataFormat ) => {
+    //#region ----- Prepare data for rendering with LCJS -----
+    // Map values to LCJS accepted format, where the date is formatted to a Number.
+    const xohlcValues: XOHLC[] = []
+    // Separate Volume values from OHLC.
+    const volumeValues: Point[] = []
 
+    // Measure operation time.
+    const tStart = window.performance.now()
+    for ( const key in data.history ) {
+        const stringValues = data.history[key]
+        // 'key' = String UTC Date. Should work directly with JavaScript Date().
+        const x = new Date( key ).getTime()
+        const o = Number( stringValues.open )
+        const h = Number( stringValues.high )
+        const l = Number( stringValues.low )
+        const c = Number( stringValues.close )
+        const volume = Number( stringValues.volume )
+
+        xohlcValues.push([x, o, h, l, c])
+        volumeValues.push({ x, y: volume })
+    }
+    console.log(`Prepared data in ${((window.performance.now() - tStart) / 1000).toFixed(1)} s`)
+    console.log(`${xohlcValues.length} XOHLC values, ${volumeValues.length} Volume values.`)
+    //#endregion
+
+    //#region ----- Render data -----
+    if ( seriesOHLC ) {
+        seriesOHLC
+            .clear()
+            .add( xohlcValues )
+    }
+
+    //#endregion
 }
 
 //#endregion
@@ -254,6 +285,8 @@ domElements.get( domElementIDs.dataSearchActivate )
 charts[0].setPadding({ top: 40 })
 
 //#endregion
+
+
 
 // Development configuration.
 ;(<HTMLInputElement>domElements.get( domElementIDs.dataSearchInput )).value = 'AAPL'
