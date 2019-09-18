@@ -1,12 +1,12 @@
 {
   "name": "lcjs-trading-example",
   "version": "1.0.0",
-  "description": "Simple trading chart application using LightningChart JS",
-  "main": "index.js",
+  "description": "Example trading chart website using LightningChart JS",
+  "main": "main.bundle.js",
   "scripts": {
     "start": "webpack-dev-server",
     "build": "webpack --mode production",
-    "deploy": "npm run build && gh-pages -d build"
+    "deploy": "npm run build && gh-pages -d dist"
   },
   "keywords": [],
   "author": "",
