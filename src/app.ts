@@ -27,7 +27,7 @@ const chartConfigOHLC = {
      */
     bollinger: {
         show: true,
-        averagingFrameLength: 20
+        averagingFrameLength: 13
     }
 }
 const chartConfigVolume = {
@@ -443,24 +443,11 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     //#region Bollinger.
     if ( seriesBollinger ) {
-        // Compute SMA values for Bollinger. Note that we use a separate averagingFrameLength from above SMA.
-        const smaValues = simpleMovingAverage( xohlcValues, chartConfigOHLC.bollinger.averagingFrameLength )
-        // Compute standard deviation.
-        const standardDeviation2 = 2 * standardDeviation( xohlcValues )
-        // Compute Bollinger band points (positive/negative).
-        const bollingerPoints: AreaPoint[] = []
-        const len = smaValues.length
-        for ( let i = 0; i < len; i ++ ) {
-            const sma = smaValues[i]
-            bollingerPoints.push({
-                position: sma.x,
-                high: sma.y + standardDeviation2,
-                low: sma.y - standardDeviation2
-            })
-        }
+        // Compute Bollinger bands points.
+        const bollingerBandPoints = bollingerBands( xohlcValues, chartConfigOHLC.bollinger.averagingFrameLength )
         seriesBollinger
             .clear()
-            .add( bollingerPoints )
+            .add( bollingerBandPoints )
     }
     //#endregion
 
@@ -532,7 +519,7 @@ const searchData = ( searchSymbol: string ) => {
          *
          * YYYY-MM-DD
          */
-        const date_from: string = '2010-01-01'
+        const date_from: string = '2019-01-01'
         /**
          * Sorting basis.
          */
@@ -640,26 +627,58 @@ const exponentialMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: n
     return result
 }
 /**
- * Calculate standard deviation from XOHLC 'close' values.
- * @param   xohlcValues             Array of XOHLC values.
+ * Calculate standard deviation for a set of values.
+ * @param   values                  Array of values.
  * @return                          Standard deviation value.
  */
-const standardDeviation = ( xohlcValues: XOHLC[] ): number => {
-    const len = xohlcValues.length
+const standardDeviation = ( values: number[] ): number => {
+    const len = values.length
     // Calculate average.
     let sum = 0
     for ( let i = 0; i < len; i ++ ) {
-        sum += xohlcValues[i][4]
+        sum += values[i]
     }
     const avg = sum / len
     //
     let sumSqDiff = 0
     for ( let i = 0; i < len; i ++ ) {
-        const value = xohlcValues[i][4]
+        const value = values[i]
         sumSqDiff += ( value - avg ) * ( value - avg )
     }
     return Math.sqrt( sumSqDiff / len )
 }
+/**
+ * Calculate bollinger bands values from XOHLC values.
+ * @param   xohlcValues             Array of XOHLC values.
+ * @param   averagingFrameLength    Length of averaging frame.
+ */
+const bollingerBands = ( xohlcValues: XOHLC[], averagingFrameLength: number  ): AreaPoint[] => {
+    const len = xohlcValues.length
+    // Compute simple moving average.
+    const smaValues = simpleMovingAverage( xohlcValues, averagingFrameLength )
+    // Map 'xohlcValues' into "typical prices" (Close + Low + High) / 3.
+    const typicalPrices: number[] = []
+    for ( let i = 0; i < len; i ++ ) {
+        const xohlc = xohlcValues[ i ]
+        typicalPrices[ i ] = ( xohlc[4] + xohlc[3] + xohlc[2] ) / 3
+    }
+    // Compute Bollinger bands (two y values per one X value).
+    const bollingerBands: AreaPoint[] = []
+    for ( let i = averagingFrameLength - 1; i < len; i ++ ) {
+        // Compute standard deviation over previous 'averagingFrameLength' typical prices.
+        const valuesForSD = typicalPrices.slice( i - (averagingFrameLength - 1), i )
+        const standardDeviation2 = 2 * standardDeviation( valuesForSD )
+        // Add + and - deviation from SMA.
+        const sma = smaValues[ i - (averagingFrameLength - 1) ]
+        bollingerBands.push({
+            position: sma.x,
+            high: sma.y + standardDeviation2,
+            low: sma.y - standardDeviation2
+        })
+    }
+    return bollingerBands
+}
+
 /**
  * Calculate RSI values from XOHLC 'close' values.
  * @param   xohlcValues             Array of XOHLC values.
