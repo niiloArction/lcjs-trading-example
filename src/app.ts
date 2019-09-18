@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -35,7 +35,7 @@ const chartConfigVolume = {
     verticalSpans: 1
 }
 const chartConfigRSI = {
-    show: false,
+    show: true,
     verticalSpans: 1
 }
 
@@ -135,8 +135,7 @@ if ( chartConfigOHLC.show ) {
             defaultAxisXTickStrategy: xAxisTickStrategy
         }
     })
-        // Remove title.
-        .setTitleFillStyle( emptyFill )
+        .setTitle('')
 
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
@@ -144,11 +143,15 @@ if ( chartConfigOHLC.show ) {
     }
     if ( chartConfigOHLC.sma.show ) {
         // Create SMA Series.
-        seriesSMA = chartOHLC.addLineSeries()
+        seriesSMA = chartOHLC.addLineSeries({
+            dataPattern: DataPatterns.horizontalProgressive
+        })
     }
     if ( chartConfigOHLC.ema.show ) {
         // Create EMA Series.
-        seriesEMA = chartOHLC.addLineSeries()
+        seriesEMA = chartOHLC.addLineSeries({
+            dataPattern: DataPatterns.horizontalProgressive
+        })
     }
     // Create OHLC Series.
     seriesOHLC = chartOHLC.addOHLCSeries({
@@ -172,8 +175,7 @@ if ( chartConfigVolume.show ) {
             defaultAxisXTickStrategy: xAxisTickStrategy
         }
     })
-        // Remove title.
-        .setTitleFillStyle( emptyFill )
+        .setTitle('Volume')
 
     // Create Volume Series.
     seriesVolume = chartVolume.addAreaSeries({
@@ -184,6 +186,66 @@ if ( chartConfigVolume.show ) {
 
 //#region ----- Create RSI Chart -----
 let chartRSI: ChartXY | undefined
+let seriesRSI: LineSeries | undefined
+let ticksRSI: CustomTick[] = []
+let tickRSIThresholdLow: CustomTick | undefined
+let tickRSIThresholdHigh: CustomTick | undefined
+
+if ( chartConfigRSI.show ) {
+    chartRSI = dashboard.createChartXY({
+        columnIndex: 0,
+        columnSpan: 1,
+        rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigRSI ) ),
+        rowSpan: chartConfigRSI.verticalSpans,
+        chartXYOptions: {
+            defaultAxisXTickStrategy: xAxisTickStrategy
+        }
+    })
+        .setTitle('RSI')
+
+    // Create Volume Series.
+    seriesRSI = chartRSI.addLineSeries({
+        dataPattern: DataPatterns.horizontalProgressive
+    })
+
+    // Create RSI ticks with CustomTicks, to better indicate common thresholds of 30% and 70%.
+    const axisY = chartRSI.getDefaultAxisY()
+        .setTickStyle( emptyTick )
+        // RSI interval always from 0 to 100.
+        .setInterval( 0, 100 )
+        .setScrollStrategy( undefined )
+    
+    // Create ticks with no Background.
+    const tickWithoutBackgroundBuilder = UIElementBuilders.PointableTextBox
+        .addStyler(( pointableTextBox ) => pointableTextBox
+            .setBackground(( background ) => background
+                .setFillStyle( emptyFill )
+                .setStrokeStyle( emptyLine )
+                .setPointerLength( 0 )
+            )
+        )
+
+    // TODO: What is this TypeScript error? This should be the right builder.
+    ticksRSI.push( axisY.addCustomTick( <any>tickWithoutBackgroundBuilder )
+        .setValue( 0 )
+        // Disable gridline.
+        .setGridStrokeLength( 0 )
+    )
+    // TODO: What is this TypeScript error? This should be the right builder.
+    ticksRSI.push( axisY.addCustomTick( <any>tickWithoutBackgroundBuilder )
+        .setValue( 100 )
+        // Disable gridline.
+        .setGridStrokeLength( 0 )
+    )
+    // TODO: What is this TypeScript error? This should be the right builder.
+    tickRSIThresholdLow = axisY.addCustomTick( <any>tickWithoutBackgroundBuilder )
+        .setValue( 30 )
+    ticksRSI.push( tickRSIThresholdLow )
+    // TODO: What is this TypeScript error? This should be the right builder.
+    tickRSIThresholdHigh = axisY.addCustomTick( <any>tickWithoutBackgroundBuilder )
+        .setValue( 70 )
+    ticksRSI.push( tickRSIThresholdHigh )
+}
 //#endregion
 
 //#region ----- Configure Axes -----
@@ -192,6 +254,11 @@ const charts = [ chartOHLC, chartVolume, chartRSI ]
 const lowestShownChartIndex = chartConfigs.reduce(
     (prev, chartConfig, i) => chartConfig.show ? i : prev,
     -1
+)
+// Find highest shown Chart index.
+const highestShownChartIndex = chartConfigs.reduce(
+    (prev, chartConfig, i) => chartConfig.show ? Math.min( i, prev ) : prev,
+    Number.MAX_SAFE_INTEGER
 )
 const masterAxis = charts[ lowestShownChartIndex ].getDefaultAxisX()
 
@@ -357,6 +424,10 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     // Fit new data to X view (automatic X scrolling is disabled in application).
     masterAxis.fit()
+
+    // Set title of top-most Chart to show name data.
+    charts[ highestShownChartIndex ].setTitle( data.name )
+
 }
 
 //#endregion
@@ -514,6 +585,14 @@ const standardDeviation = ( xohlcValues: XOHLC[] ): number => {
     }
     return Math.sqrt( sumSqDiff / len )
 }
+/**
+ * 
+ */
+const relativeStrengthIndex = ( xohlcValues: XOHLC[], n: number ): Point[] => {
+    const result: Point[] = []
+
+    return result
+}
 
 
 //#endregion
@@ -524,13 +603,17 @@ enum AppColor {
     LightBlue,
     DarkBlue,
     DarkBlueTransparent,
-    Purplish
+    Purplish,
+    DimRed,
+    DimGreen
 }
 const colors = new Map<AppColor, Color>()
 colors.set( AppColor.LightBlue, ColorRGBA( 162, 191, 244 ) )
 colors.set( AppColor.DarkBlue, ColorRGBA( 75, 99, 143 ) )
 colors.set( AppColor.DarkBlueTransparent, colors.get( AppColor.DarkBlue ).setA(120) )
 colors.set( AppColor.Purplish, ColorRGBA( 209, 44, 144 ) )
+colors.set( AppColor.DimRed, ColorRGBA( 73, 32, 46 ) )
+colors.set( AppColor.DimGreen, ColorRGBA( 23, 93, 45 ) )
 
 
 const solidFills = new Map<AppColor, SolidFill>()
@@ -545,9 +628,23 @@ colors.forEach((_, key) => {
     solidLines.set( key, thicknessMap )
 })
 
+// Style Charts.
+for ( let i = 0; i < charts.length; i ++ ) {
+    const chart = charts[i]
+    if ( chart ) {
+        chart
+            .setTitleFont((font) => font
+                // Highest Chart, which shows name of data, has bigger font.
+                .setSize( i === highestShownChartIndex ? 20 : 10 )
+            )
+            .setTitleMarginTop( 4 )
+            .setTitleMarginBottom( 2 )
+            .setPadding({ top: 0 })
+        }
+}
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
-charts[0].setPadding({ top: 30 })
+// charts[0].setPadding({ top: 20 })
 
 // Style Axes.
 for ( let i = 0; i < charts.length; i ++ ) {
@@ -597,6 +694,15 @@ if ( seriesBollinger )
         .setLowFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
         .setHighStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
         .setLowStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
+
+// Style RSI ticks.
+if ( tickRSIThresholdLow )
+    tickRSIThresholdLow
+        .setGridStrokeStyle( solidLines.get( AppColor.DimGreen ).get( AppLineThickness.Thin ) )
+
+if ( tickRSIThresholdHigh )
+tickRSIThresholdHigh
+        .setGridStrokeStyle( solidLines.get( AppColor.DimRed ).get( AppLineThickness.Thin ) )
 
 // TODO: ResultTableFormatters.
 
