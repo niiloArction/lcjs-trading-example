@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, emptyTick, VisibleTicks, emptyLine } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -11,10 +11,13 @@ const chartConfigOHLC = {
      * Simple Moving Average.
      */
     sma: {
-        show: true
+        show: true,
+        averagingFrameLength: 13
     },
     /**
      * Exponential Moving Average.
+     *
+     * Uses same averagingFrameLength as above SMA.
      */
     ema: {
         show: true
@@ -23,7 +26,8 @@ const chartConfigOHLC = {
      * Bollinger Bands.
      */
     bollinger: {
-        show: true
+        show: true,
+        averagingFrameLength: 20
     }
 }
 const chartConfigVolume = {
@@ -113,6 +117,7 @@ const dashboard = lightningChart().Dashboard({
 })
 //#endregion
 
+const xAxisTickStrategy = AxisTickStrategies.DateTime( dateTimeOrigin )
 //#region ----- Create OHLC Chart -----
 let chartOHLC: ChartXY | undefined
 let seriesOHLC: OHLCSeriesTraditional<OHLCCandleStick, OHLCCandleStick> | undefined
@@ -125,46 +130,55 @@ if ( chartConfigOHLC.show ) {
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigOHLC ) ),
-        rowSpan: chartConfigOHLC.verticalSpans
+        rowSpan: chartConfigOHLC.verticalSpans,
+        chartXYOptions: {
+            defaultAxisXTickStrategy: xAxisTickStrategy
+        }
     })
         // Remove title.
         .setTitleFillStyle( emptyFill )
-
-    // Create OHLC Series.
-    seriesOHLC = chartOHLC.addOHLCSeries({
-        positiveFigure: OHLCFigures.Candlestick,
-        negativeFigure: OHLCFigures.Candlestick
-    })
-
-    if ( chartConfigOHLC.sma.show ) {
-        // Create SMA Series.
-        
-    }
-
-    if ( chartConfigOHLC.ema.show ) {
-        // Create EMA Series.
-
-    }
 
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
 
     }
+    if ( chartConfigOHLC.sma.show ) {
+        // Create SMA Series.
+        seriesSMA = chartOHLC.addLineSeries()
+    }
+    if ( chartConfigOHLC.ema.show ) {
+        // Create EMA Series.
+        seriesEMA = chartOHLC.addLineSeries()
+    }
+    // Create OHLC Series.
+    seriesOHLC = chartOHLC.addOHLCSeries({
+        positiveFigure: OHLCFigures.Candlestick,
+        negativeFigure: OHLCFigures.Candlestick
+    })
 }
 //#endregion
 
 //#region ----- Create Volume Chart -----
 let chartVolume: ChartXY | undefined
+let seriesVolume: AreaSeries | undefined
 
 if ( chartConfigVolume.show ) {
     chartVolume = dashboard.createChartXY({
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigVolume ) ),
-        rowSpan: chartConfigVolume.verticalSpans
+        rowSpan: chartConfigVolume.verticalSpans,
+        chartXYOptions: {
+            defaultAxisXTickStrategy: xAxisTickStrategy
+        }
     })
         // Remove title.
         .setTitleFillStyle( emptyFill )
+
+    // Create Volume Series.
+    seriesVolume = chartVolume.addAreaSeries({
+        type: AreaSeriesTypes.Positive
+    })
 }
 //#endregion
 
@@ -172,51 +186,43 @@ if ( chartConfigVolume.show ) {
 let chartRSI: ChartXY | undefined
 //#endregion
 
+//#region ----- Configure Axes -----
 const charts = [ chartOHLC, chartVolume, chartRSI ]
 // Find lowest shown Chart index.
 const lowestShownChartIndex = chartConfigs.reduce(
     (prev, chartConfig, i) => chartConfig.show ? i : prev,
     -1
 )
+const masterAxis = charts[ lowestShownChartIndex ].getDefaultAxisX()
 
-// Configure Axes of Charts.
-let dateTimeAxis: Axis
-
-for ( let i = 0; i < charts.length; i ++ ) {
-    const chart = charts[i]
-    if ( chart !== undefined ) {
-        const axisX = chart.getDefaultAxisX()
-        const axisY = chart.getDefaultAxisY()
-        if ( i === lowestShownChartIndex ) {
-            // This Chart is the lowest one, it will contain a shared DateTime Axis.
-            dateTimeAxis = chart.addAxisX(
-                false,
-                AxisTickStrategies.DateTime( dateTimeOrigin )
-            )
-            // Remove default X Axis.
-            chart.getDefaultAxisX().dispose()
-        } else {
-            // This Charts X Axis will be hidden, and configured to scroll according to the shared DateTime Axis.
-            axisX
-                .setTickStyle((ticks: VisibleTicks) => ticks
-                    .setLabelFillStyle( emptyFill )
-                    .setTickLength( 0 )
-                )
-                .setStrokeStyle( emptyLine )
-                // TODO: Why cant Nibs be hidden?
-                // .setNibStyle( emptyLine )
-                // Disable scrolling.
-                .setScrollStrategy( undefined )
+// Bind X Axes together.
+const HandleScaleChangeX = ( chartIndex: number ) => {
+    return ( start: number, end: number ) => {
+        for ( let i = 0; i < charts.length; i ++ ) {
+            if ( chartConfigs[i].show ) {
+                const axis = charts[ i ].getDefaultAxisX()
+                if ( i !== chartIndex && axis.scale.getInnerStart() !== start && axis.scale.getInnerEnd() !== end )
+                    axis.setInterval( start, end )
+            }
         }
-
+    }
+}
+for ( let i = 0; i < charts.length; i ++ ) {
+    if ( chartConfigs[i].show ) {
+        const chart = charts[i]
+        chart.getDefaultAxisX()
+            .setScrollStrategy( undefined )
+            .onScaleChange( HandleScaleChangeX( i ) )
     }
 }
 
+// i !== j && axis.scale.getInnerStart() !== start && axis.scale.getInnerEnd() !== end
+
+//#endregion
 
 //#endregion
 
 //#region ----- Implement logic for rendering supplied data -----
-
 interface StringOHLCWithVolume {
     close: string
     high: string
@@ -246,12 +252,15 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     // Get starting Date from first item.
     const dataKeys = Object.keys( data.history )
-    const startDate = new Date( dataKeys[0] )
+    // DateTime values must be subtracted 'dateTimeOrigin' for Axes to show Date values correctly.
+    const dateTimeOriginTime = dateTimeOrigin.getTime()
 
     const dataKeysLen = dataKeys.length
-    // Index data values starting from x = 0.
-    for ( let x = 0; x < dataKeysLen; x ++ ) {
-        const stringValues = data.history[ dataKeys[ x ] ]
+    for ( let i = 0; i < dataKeysLen; i ++ ) {
+        const key = dataKeys[ i ]
+        const stringValues = data.history[ key ]
+        // Date-key is UTC, and can be directly transformed to Date.
+        const x = new Date( key ).getTime() - dateTimeOriginTime
         const o = Number( stringValues.open )
         const h = Number( stringValues.high )
         const l = Number( stringValues.low )
@@ -266,16 +275,68 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#endregion
 
     //#region ----- Render data -----
-    // Configure DateTime Axis.
-
-
+    //#region OHLC.
     if ( seriesOHLC ) {
         seriesOHLC
             .clear()
             .add( xohlcValues )
     }
+    //#endregion
+
+    //#region SMA.
+    if ( seriesSMA ) {
+        // Compute SMA values from XOHLC values using data-analysis library.
+        const smaValues = calculateSimpleMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        seriesSMA
+            .clear()
+            .add( smaValues )
+    }
+    //#endregion
+
+    //#region EMA.
+    if ( seriesEMA ) {
+        // Compute EMA values from XOHLC values using data-analysis library.
+        const emaValues = calculateExponentialMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        seriesEMA
+            .clear()
+            .add( emaValues )
+    }
+    //#endregion
+
+    //#region Bollinger.
+    
+    //#endregion
+
+    //#region Volume
+    if ( seriesVolume ) {
+        // To render Volume values as Histogram bars, map 'volumeValues' and add step values between data-points.
+        const histogramBarValues: Point[] = []
+        let prev: Point | undefined
+        const len = volumeValues.length
+        for ( let i = 0; i < len; i ++ ) {
+            const cur = volumeValues[ i ]
+            // Add step between previous value and cur value.
+            if ( prev ) {
+                histogramBarValues.push( { x: prev.x, y: cur.y } )
+            }
+            histogramBarValues.push( cur )
+            prev = cur
+        }
+
+        seriesVolume
+            .clear()
+            .add( histogramBarValues )
+    }
+    //#endregion
+
+    //#region RSI.
 
     //#endregion
+
+    //#endregion
+
+    // Fit new data to X view (automatic X scrolling is disabled in application).
+    masterAxis.fit()
 }
 
 //#endregion
@@ -348,12 +409,134 @@ domElements.get( domElementIDs.dataSearchActivate )
 
 //#endregion
 
+//#region ----- Data analysis tools TO BE MOVED TO NPM LIB -----
+/**
+ * Calculate SMA values from XOHLC values.
+ * @param   xohlcValues             Array of XOHLC values.
+ * @param   averagingFrameLength    Length of averaging frame.
+ * @return                          Array of SMA values. Length of this array is 'averagingFrameLength' - 1 less than 'xohlcValues'
+ */
+const calculateSimpleMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
+    const len = xohlcValues.length
+    const result: Point[] = []
+    const yValueBuffer: number[] = []
+    let sum = 0
 
+    for ( let i = 0; i < len; i ++ ) {
+        const xohlc = xohlcValues[i]
+        // Use 'close' value for SMA.
+        const value = xohlc[4]
+        sum += value
+        if ( i >= averagingFrameLength - 1 ) {
+            // Append current average.
+            const curAvg = sum / averagingFrameLength
+            result.push({ x: xohlc[0], y: curAvg})
+            // Drop oldest points value.
+            const droppedValue = yValueBuffer.shift()
+            sum -= droppedValue
+        }
+        yValueBuffer.push(value)
+    }
+    return result
+}
+/**
+ * Calculate EMA values from SMA values.
+ * @param   xohlcValues             Array of XOHLC values.
+ * @param   averagingFrameLength    Length of averaging frame.
+ * @return                          Array of EMA values.  Length of this array is equal to xohlcValues.length - averagingFrameLength + 1
+ */
+const calculateExponentialMovingAverage = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
+    const len = xohlcValues.length
+    const result: Point[] = []
+    const weighingMultiplier = 2 / ( averagingFrameLength + 1 )
+
+    // Calculate initial previous EMA using SMA method.
+    let previousEMA: number = 0
+    let i
+    for ( i = 0; i < averagingFrameLength; i ++ ) {
+        const xohlc = xohlcValues[i]
+        // Use 'close' value for SMA.
+        const value = xohlc[4]
+        previousEMA += value / averagingFrameLength
+    }
+    for ( ; i < len; i ++ ) {
+        const xohlc = xohlcValues[i]
+        // Use 'close' value for EMA.
+        const value = xohlc[4]
+        // Compute current EMA value.
+        const ema = value * weighingMultiplier + ( previousEMA !== undefined ? previousEMA * (1 - weighingMultiplier) : 0 )
+        if ( i >= averagingFrameLength - 1 ) {
+            result.push({ x: xohlc[0], y: ema })
+        }
+        previousEMA = ema
+    }
+    return result
+}
+
+
+//#endregion
 
 //#region ----- Style application -----
+enum AppColor {
+    LightBlue,
+    Purplish
+}
+const colors = new Map<AppColor, Color>()
+colors.set( AppColor.LightBlue, ColorRGBA( 162, 191, 244 ) )
+colors.set( AppColor.Purplish, ColorRGBA( 209, 44, 144 ) )
+
+
+const solidFills = new Map<AppColor, SolidFill>()
+colors.forEach((color, key) => solidFills.set( key, new SolidFill({ color }) ))
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
 charts[0].setPadding({ top: 30 })
+
+// Style Axes.
+for ( let i = 0; i < charts.length; i ++ ) {
+    const chart = charts[i]
+    if ( chart !== undefined ) {
+        const axisX = chart.getDefaultAxisX()
+        const axisY = chart.getDefaultAxisY()
+        const isChartWithMasterAxis = axisX === masterAxis
+
+        if ( ! isChartWithMasterAxis ) {
+            // This Charts X Axis will be hidden, and configured to scroll according to the master Axis.
+            axisX
+                .setTickStyle(emptyTick)
+                .setStrokeStyle( emptyLine )
+                // TODO: Why cant Nibs be hidden?
+                .setNibStyle( <any>emptyLine )
+                // Disable scrolling.
+                .setScrollStrategy( undefined )
+                // Disable mouse interactions on hidden Axes.
+                .setMouseInteractions( false )
+                
+        } else {
+            // This Chart has the Master Axis.
+            axisX
+                .setTickStyle((ticks: VisibleTicks) => ticks
+                    // Hide GridLines, but keep ticks.
+                    .setGridStrokeStyle( transparentLine )
+                )
+        }
+    }
+}
+
+// Style Series.
+if ( seriesSMA )
+    seriesSMA
+        .setStrokeStyle(( solidLine ) => solidLine
+            .setFillStyle( solidFills.get( AppColor.Purplish ) )
+        )
+
+if ( seriesEMA )
+    seriesEMA
+        .setStrokeStyle(( solidLine ) => solidLine
+            .setFillStyle( solidFills.get( AppColor.LightBlue ) )
+        )
+
+// TODO: ResultTableFormatters.
 
 //#endregion
 
