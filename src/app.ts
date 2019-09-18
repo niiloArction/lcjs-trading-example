@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -105,6 +105,12 @@ const dashboard = lightningChart().Dashboard({
 })
 //#endregion
 
+// Create custom X tick strategy for indexed Date values. Object must fulfill interface: AxisTickStrategy.
+const dateTimeTickStrategy = {
+    computeMinimalPrecision: AxisTickStrategies.Numeric.computeMinimalPrecision,
+    formatValue: ( x: number ) => dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) )
+}
+
 //#region ----- Create OHLC Chart -----
 let chartOHLC: ChartXY | undefined
 let seriesOHLC: OHLCSeriesTraditional<OHLCCandleStick, OHLCCandleStick> | undefined
@@ -118,7 +124,10 @@ if ( chartConfigOHLC.show ) {
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigOHLC ) ),
-        rowSpan: chartConfigOHLC.verticalSpans
+        rowSpan: chartConfigOHLC.verticalSpans,
+        chartXYOptions: {
+            defaultAxisXTickStrategy: dateTimeTickStrategy
+        }
     })
     
     // Create custom title attached to the top of Y Axis.
@@ -142,30 +151,40 @@ if ( chartConfigOHLC.show ) {
     if ( chartConfigOHLC.bollinger.show ) {
         // Create Bollinger Series.
         seriesBollinger = chartOHLC.addAreaRangeSeries()
+            .setName( 'Bollinger Band' )
             // Disable data-cleaning.
             .setMaxPointCount( undefined )
+            // Disable cursor interpolation.
+            .setCursorInterpolationEnabled( false )
     }
     if ( chartConfigOHLC.sma.show ) {
         // Create SMA Series.
         seriesSMA = chartOHLC.addLineSeries({
             dataPattern: DataPatterns.horizontalProgressive
         })
+            .setName( 'SMA' )
             // Disable data-cleaning.
             .setMaxPointCount( undefined )
+            // Disable cursor interpolation.
+            .setCursorInterpolationEnabled( false )
     }
     if ( chartConfigOHLC.ema.show ) {
         // Create EMA Series.
         seriesEMA = chartOHLC.addLineSeries({
             dataPattern: DataPatterns.horizontalProgressive
         })
+            .setName( 'EMA' )
             // Disable data-cleaning.
             .setMaxPointCount( undefined )
+            // Disable cursor interpolation.
+            .setCursorInterpolationEnabled( false )
     }
     // Create OHLC Series.
     seriesOHLC = chartOHLC.addOHLCSeries({
         positiveFigure: OHLCFigures.Candlestick,
         negativeFigure: OHLCFigures.Candlestick
     })
+        .setName( 'OHLC' )
         // Disable data-cleaning.
         .setMaxPointsCount( undefined )
 }
@@ -183,6 +202,7 @@ if ( chartConfigVolume.show ) {
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigVolume ) ),
         rowSpan: chartConfigVolume.verticalSpans,
         chartXYOptions: {
+            defaultAxisXTickStrategy: dateTimeTickStrategy,
             // Volume data has a lot of quantity, so better select Units (K, M, etc.).
             defaultAxisYTickStrategy: AxisTickStrategies.NumericWithUnits
         }
@@ -210,8 +230,11 @@ if ( chartConfigVolume.show ) {
     seriesVolume = chartVolume.addAreaSeries({
         type: AreaSeriesTypes.Positive
     })
+        .setName( 'Volume' )
         // Disable data-cleaning.
         .setMaxPointCount( undefined )
+        // Disable cursor interpolation.
+        .setCursorInterpolationEnabled( false )
 }
 //#endregion
 
@@ -228,7 +251,10 @@ if ( chartConfigRSI.show ) {
         columnIndex: 0,
         columnSpan: 1,
         rowIndex: countRowSpanForChart( chartConfigs.indexOf( chartConfigRSI ) ),
-        rowSpan: chartConfigRSI.verticalSpans
+        rowSpan: chartConfigRSI.verticalSpans,
+        chartXYOptions: {
+            defaultAxisXTickStrategy: dateTimeTickStrategy
+        }
     })
 
     // Create custom title attached to the top of Y Axis.
@@ -253,8 +279,11 @@ if ( chartConfigRSI.show ) {
     seriesRSI = chartRSI.addLineSeries({
         dataPattern: DataPatterns.horizontalProgressive
     })
+        .setName( 'RSI' )
         // Disable data-cleaning.
         .setMaxPointCount( undefined )
+        // Disable cursor interpolation.
+        .setCursorInterpolationEnabled( false )
 
     // Create RSI ticks with CustomTicks, to better indicate common thresholds of 30% and 70%.
     axisY
@@ -338,6 +367,9 @@ for ( let i = 0; i < charts.length; i ++ ) {
 //#endregion
 
 //#region ----- Implement logic for rendering supplied data -----
+// Function which gets Date from indexed X coordinate.
+let getDateFromIndex: ( x: number ) => Date = ( x ) => undefined
+
 interface StringOHLCWithVolume {
     close: string
     high: string
@@ -357,7 +389,7 @@ interface AppDataFormat {
 }
 const renderOHLCData = ( data: AppDataFormat ) => {
     //#region ----- Prepare data for rendering with LCJS -----
-    // Map values to LCJS accepted format, where the date is formatted to a Number.
+    // Map values to LCJS accepted format, with an additional X value.
     const xohlcValues: XOHLC[] = []
     // Separate Volume values from OHLC.
     const volumeValues: Point[] = []
@@ -368,7 +400,7 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     // Get starting Date from first item.
     const dataKeys = Object.keys( data.history )
     const dataKeysLen = dataKeys.length
-    // Index data-values starting from x = 0.
+    // Index data-values starting from X = 0.
     for ( let x = 0; x < dataKeysLen; x ++ ) {
         const key = dataKeys[ x ]
         const stringValues = data.history[ key ]
@@ -383,9 +415,14 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     }
     const xohlcValuesLen = xohlcValues.length
     const volumeValuesLen = volumeValues.length
-    console.log(`Prepared data in ${((window.performance.now() - tStart) / 1000).toFixed(1)} s`)
-    console.log(`${xohlcValuesLen} XOHLC values, ${volumeValuesLen} Volume values.`)
-    //#endregion
+    //#endregion 38
+
+    // Define getDateFromIndex function.
+    getDateFromIndex = ( x ) => {
+        // Get Date directly from data.
+        const dateUTC = dataKeys[ x ]
+        return new Date( dateUTC )
+    }
 
     //#region ----- Render data -----
     //#region OHLC.
@@ -458,6 +495,8 @@ const renderOHLCData = ( data: AppDataFormat ) => {
             .add( rsiValues )
     }
     //#endregion
+    console.log(`Prepared data in ${((window.performance.now() - tStart) / 1000).toFixed(1)} s`)
+    console.log(`${xohlcValuesLen} XOHLC values, ${volumeValuesLen} Volume values.`)
 
     // Fit new data to X view (automatic X scrolling is disabled in application).
     masterAxis.fit()
@@ -837,7 +876,31 @@ if ( tickRSIThresholdHigh )
 tickRSIThresholdHigh
         .setGridStrokeStyle( solidLines.get( AppColor.RedTransparent ).get( AppLineThickness.Thin ) )
 
-// TODO: ResultTableFormatters.
+// Style ResultTable Formatters.
+// TODO: Different formatter based on Axis zoom level.
+const dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
+
+const resultTableFormatter = (( tableContentBuilder, series, x, y ) => tableContentBuilder
+    .addRow( series.getName(), '', series.axisY.formatValue( y ) )
+    .addRow( dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) ) )
+) as RangeSeriesFormatter & SeriesXYFormatter
+if ( seriesSMA )
+    seriesSMA.setResultTableFormatter( resultTableFormatter )
+if ( seriesEMA )
+    seriesEMA.setResultTableFormatter( resultTableFormatter )
+if ( seriesVolume )
+    seriesVolume.setResultTableFormatter( resultTableFormatter )
+if ( seriesRSI )
+    seriesRSI.setResultTableFormatter( resultTableFormatter )
+
+if ( seriesBollinger )
+    // No Cursor picking for Bollinger Bands.
+    seriesBollinger
+        .setMouseInteractions( false )
+        .setCursorEnabled( false )
+
+        // TODO: Cursor coloring
+        // TODO: OHLC ResultTable formatting.
 
 //#endregion
 
