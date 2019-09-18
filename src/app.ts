@@ -649,8 +649,10 @@ const standardDeviation = ( values: number[] ): number => {
 }
 /**
  * Calculate bollinger bands values from XOHLC values.
+ * Uses "typical prices" (average of close + low + high).
  * @param   xohlcValues             Array of XOHLC values.
  * @param   averagingFrameLength    Length of averaging frame.
+ * @return                          Points of Bollinger bands (X + 2 Y values)
  */
 const bollingerBands = ( xohlcValues: XOHLC[], averagingFrameLength: number  ): AreaPoint[] => {
     const len = xohlcValues.length
@@ -666,7 +668,7 @@ const bollingerBands = ( xohlcValues: XOHLC[], averagingFrameLength: number  ): 
     const bollingerBands: AreaPoint[] = []
     for ( let i = averagingFrameLength - 1; i < len; i ++ ) {
         // Compute standard deviation over previous 'averagingFrameLength' typical prices.
-        const valuesForSD = typicalPrices.slice( i - (averagingFrameLength - 1), i )
+        const valuesForSD = typicalPrices.slice( i - (averagingFrameLength - 1), i + 1 )
         const standardDeviation2 = 2 * standardDeviation( valuesForSD )
         // Add + and - deviation from SMA.
         const sma = smaValues[ i - (averagingFrameLength - 1) ]
