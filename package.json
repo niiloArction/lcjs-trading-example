@@ -1,7 +1,7 @@
 {
-  "name": "lcjs-typescript-example",
+  "name": "lcjs-trading-example",
   "version": "1.0.0",
-  "description": "",
+  "description": "Simple trading chart application using LightningChart JS",
   "main": "index.js",
   "scripts": {
     "start": "webpack-dev-server",

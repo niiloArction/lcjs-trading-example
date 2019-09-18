@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <style>
+        html {
+            height: 100%;
+        }
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        div {
+            width: 100%;
+            height: 100%;
+        }
+        #trading-data-search-container {
+            position: fixed;
+            width: 100%;
+        }
+        #trading-chart-container {
+            position: fixed;
+            top: 0px;
+        }
+    </style>
+  </head>
+  <body>
+    <div
+        id='trading-chart-container'
+    ></div>
+    <div
+        id='trading-data-search-container'
+    >
+        <input
+            type='text'
+            id='trading-data-search-input'
+            placeholder="Data search symbol"
+        ></input>
+        <button
+            id='trading-data-search-activate'
+        >
+            Search
+        </button>
+    </div>
+  </body>
+</html>
