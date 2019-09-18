@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter, AutoCursorXY } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter, AutoCursorXY, AreaSeriesPositive, UIDraggingModes } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -143,6 +143,7 @@ if ( chartConfigOHLC.show ) {
         .setText( '' )
         .setPosition({ x: 0, y: 10 })
         .setOrigin( UIOrigins.LeftTop )
+        .setDraggingMode( UIDraggingModes.notDraggable )
     chartOHLCTitle = _chartOHLCTitle
     // Follow Axis interval changes to keep title positioned where it should be.
     axisX.onScaleChange((start, end) => _chartOHLCTitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
@@ -192,7 +193,7 @@ if ( chartConfigOHLC.show ) {
 
 //#region ----- Create Volume Chart -----
 let chartVolume: ChartXY | undefined
-let seriesVolume: AreaSeries | undefined
+let seriesVolume: AreaSeriesPositive | undefined
 let chartVolumeTitle: UITextBox | undefined
 
 if ( chartConfigVolume.show ) {
@@ -221,6 +222,7 @@ if ( chartConfigVolume.show ) {
         .setText( 'Volume' )
         .setPosition({ x: 0, y: 10 })
         .setOrigin( UIOrigins.LeftTop )
+        .setDraggingMode( UIDraggingModes.notDraggable )
     chartVolumeTitle = _chartVolumeTitle
     // Follow Axis interval changes to keep title positioned where it should be.
     axisX.onScaleChange((start, end) => _chartVolumeTitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
@@ -270,6 +272,7 @@ if ( chartConfigRSI.show ) {
         .setText( 'RSI' )
         .setPosition({ x: 0, y: 10 })
         .setOrigin( UIOrigins.LeftTop )
+        .setDraggingMode( UIDraggingModes.notDraggable )
         chartRSITitle = _chartRSITitle
     // Follow Axis interval changes to keep title positioned where it should be.
     axisX.onScaleChange((start, end) => _chartRSITitle.setPosition({ x: start, y: axisY.scale.getInnerEnd() }))
@@ -327,6 +330,7 @@ if ( chartConfigRSI.show ) {
 
 //#region ----- Configure Axes -----
 const charts = [ chartOHLC, chartVolume, chartRSI ]
+const chartTitles = [ chartOHLCTitle, chartVolumeTitle, chartRSITitle ]
 // Find lowest shown Chart index.
 const lowestShownChartIndex = chartConfigs.reduce(
     (prev, chartConfig, i) => chartConfig.show ? i : prev,
@@ -420,8 +424,10 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     // Define getDateFromIndex function.
     getDateFromIndex = ( x ) => {
         // Get Date directly from data.
-        const dateUTC = dataKeys[ x ]
-        return new Date( dateUTC )
+        if ( x in dataKeys )
+            return new Date( dataKeys[ x ] )
+        else
+            return undefined
     }
 
     //#region ----- Render data -----
@@ -517,6 +523,9 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 // Function that handles event where data search failed.
 const dataSearchFailed = ( searchSymbol: string ) => {
     console.log('No data found for \'', searchSymbol, '\'')
+    // Set title of OHLC Chart to show no data was found.
+    if ( chartOHLCTitle )
+        chartOHLCTitle.setText( 'No data found for \'' + searchSymbol + '\'' )
 }
 
 // Define function that searches OHLC data.
@@ -752,8 +761,10 @@ const relativeStrengthIndex = ( xohlcValues: XOHLC[], averagingFrameLength: numb
 enum AppColor {
     White,
     LightBlue,
+    Blue,
+    BlueTransparent,
     DarkBlue,
-    DarkBlueTransparent,
+    DarkerBlue,
     Purplish,
     Red,
     RedTransparent,
@@ -763,8 +774,10 @@ enum AppColor {
 const colors = new Map<AppColor, Color>()
 colors.set( AppColor.White, ColorHEX('#FFF') )
 colors.set( AppColor.LightBlue, ColorRGBA( 162, 191, 244 ) )
-colors.set( AppColor.DarkBlue, ColorRGBA( 75, 99, 143 ) )
-colors.set( AppColor.DarkBlueTransparent, colors.get( AppColor.DarkBlue ).setA(120) )
+colors.set( AppColor.Blue, ColorRGBA( 75, 99, 143 ) )
+colors.set( AppColor.BlueTransparent, colors.get( AppColor.Blue ).setA(120) )
+colors.set( AppColor.DarkBlue, ColorRGBA( 15, 23, 36 ) )
+colors.set( AppColor.DarkerBlue, ColorRGBA( 10, 15, 24 ) )
 colors.set( AppColor.Purplish, ColorRGBA( 209, 44, 144 ) )
 colors.set( AppColor.Red, ColorRGBA( 219, 40, 68 ) )
 colors.set( AppColor.RedTransparent, colors.get( AppColor.Red ).setA(120) )
@@ -784,6 +797,9 @@ colors.forEach((_, key) => {
     solidLines.set( key, thicknessMap )
 })
 
+// Style Dashboard.
+// TODO: No API for styling Dashboard splitter color?
+
 // Style Charts.
 for ( let i = 0; i < charts.length; i ++ ) {
     const chart = charts[i]
@@ -794,8 +810,14 @@ for ( let i = 0; i < charts.length; i ++ ) {
             .setTitleMarginTop( 0 )
             .setTitleMarginBottom( 0 )
             .setPadding({ top: 10, left: 0 })
-        }
+            // Color scheme.
+            .setBackgroundFillStyle( solidFills.get( AppColor.DarkerBlue ) )
+            .setChartBackgroundFillStyle( solidFills.get( AppColor.DarkBlue ) )
+    }
 }
+for ( const title of chartTitles )
+    title
+        .setTextFillStyle( solidFills.get( AppColor.Blue ) )
 
 // Push all charts left sides equal distance away from left border.
 // TODO: Is there any way to do this without adding invisible custom ticks?
@@ -818,6 +840,7 @@ for ( let i = 0; i < charts.length; i ++ ) {
     if ( chart !== undefined ) {
         const axisX = chart.getDefaultAxisX()
         const axisY = chart.getDefaultAxisY()
+        const axes = [ axisX, axisY ]
         const isChartWithMasterAxis = axisX === masterAxis
 
         if ( ! isChartWithMasterAxis ) {
@@ -831,7 +854,6 @@ for ( let i = 0; i < charts.length; i ++ ) {
                 .setScrollStrategy( undefined )
                 // Disable mouse interactions on hidden Axes.
                 .setMouseInteractions( false )
-                
         } else {
             // This Chart has the Master Axis.
             axisX
@@ -840,8 +862,25 @@ for ( let i = 0; i < charts.length; i ++ ) {
                     .setGridStrokeStyle( transparentLine )
                 )
         }
+        for ( const axis of axes ) { 
+            const tickStyle = axis.getTickStyle()
+            if ( tickStyle !== emptyTick )
+                axis
+                    .setTickStyle((tickStyle: VisibleTicks) => tickStyle
+                        .setLabelFillStyle( solidFills.get( AppColor.LightBlue ) )
+                        .setTickStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+                    )
+            axis
+                .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thick ) )
+                .setNibStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thick ) )
+        }
     }
 }
+for ( const tick of ticksRSI )
+    tick
+        .setMarker(( marker ) => marker
+            .setTextFillStyle( solidFills.get( AppColor.LightBlue ) )
+        )
 
 // Style Series.
 if ( seriesOHLC )
@@ -854,6 +893,7 @@ if ( seriesOHLC )
             .setBodyFillStyle( solidFills.get( AppColor.Red ) )
             .setStrokeStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thin ) )
         )
+        .setFigureWidth( 10 )
 
 if ( seriesSMA )
     seriesSMA
@@ -863,10 +903,14 @@ if ( seriesEMA )
         .setStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
 if ( seriesBollinger )
     seriesBollinger
-        .setHighFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
-        .setLowFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
-        .setHighStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
-        .setLowStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
+        .setHighFillStyle( solidFills.get( AppColor.BlueTransparent ) )
+        .setLowFillStyle( solidFills.get( AppColor.BlueTransparent ) )
+        .setHighStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+        .setLowStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+if ( seriesVolume )
+    seriesVolume
+        .setFillStyle( solidFills.get( AppColor.LightBlue ) )
+        .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
 if ( seriesRSI )
     seriesRSI
         .setStrokeStyle( solidLines.get( AppColor.White ).get( AppLineThickness.Thin ) )
@@ -911,12 +955,39 @@ const enableAutoCursorAutoColoring = ( autoCursor: AutoCursorXY ) => autoCursor
     .setResultTableAutoTextStyle( true )
     .setTickMarkerXAutoTextStyle( true )
     .setTickMarkerYAutoTextStyle( true )
+// Style AutoCursors.
+const styleAutoCursor = ( autoCursor: AutoCursorXY ) => autoCursor
+    .setTickMarkerX(( tickMarker ) => tickMarker
+        .setBackground(( background ) => background
+            .setFillStyle( solidFills.get( AppColor.DarkerBlue ) )
+            .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+        )
+    )
+    .setTickMarkerY(( tickMarker ) => tickMarker
+        .setBackground(( background ) => background
+            .setFillStyle( solidFills.get( AppColor.DarkerBlue ) )
+            .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+        )
+    )
+    .setResultTable(( resultTable ) => resultTable
+        .setBackground(( background ) => background
+            .setFillStyle( solidFills.get( AppColor.DarkerBlue ) )
+            .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+        )
+    )
+
 if ( chartOHLC )
-    chartOHLC.setAutoCursor( enableAutoCursorAutoColoring )
+    chartOHLC
+        .setAutoCursor( enableAutoCursorAutoColoring )
+        .setAutoCursor( styleAutoCursor )
 if ( chartVolume )
-    chartVolume.setAutoCursor( enableAutoCursorAutoColoring )
+    chartVolume
+        .setAutoCursor( enableAutoCursorAutoColoring )
+        .setAutoCursor( styleAutoCursor )
 if ( chartRSI )
-    chartRSI.setAutoCursor( enableAutoCursorAutoColoring )
+    chartRSI
+        .setAutoCursor( enableAutoCursorAutoColoring )
+        .setAutoCursor( styleAutoCursor )
 
 if ( seriesBollinger )
     // No Cursor picking for Bollinger Bands.
