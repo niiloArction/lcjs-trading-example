@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -36,7 +36,8 @@ const chartConfigVolume = {
 }
 const chartConfigRSI = {
     show: true,
-    verticalSpans: 1
+    verticalSpans: 1,
+    averagingFrameLength: 13
 }
 
 // Market data is currently always requested and parsed from worldtradingdata.com
@@ -203,7 +204,7 @@ if ( chartConfigRSI.show ) {
     })
         .setTitle('RSI')
 
-    // Create Volume Series.
+    // Create RSI Series.
     seriesRSI = chartRSI.addLineSeries({
         dataPattern: DataPatterns.horizontalProgressive
     })
@@ -419,7 +420,13 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     //#region RSI.
 
     //#endregion
-
+    if ( seriesRSI ) {
+        // Compute RSI values from XOHLC values using data-analysis library.
+        const rsiValues = relativeStrengthIndex( xohlcValues, chartConfigRSI.averagingFrameLength )
+        seriesRSI
+            .clear()
+            .add( rsiValues )
+    }
     //#endregion
 
     // Fit new data to X view (automatic X scrolling is disabled in application).
@@ -586,11 +593,47 @@ const standardDeviation = ( xohlcValues: XOHLC[] ): number => {
     return Math.sqrt( sumSqDiff / len )
 }
 /**
- * 
+ * Calculate RSI values from XOHLC 'close' values.
+ * @param   xohlcValues             Array of XOHLC values.
+ * @param   averagingFrameLength    Length of averaging frame.
+ * @return                          Relative Strength Index values. Length of this array is equal to xohlcValues.length - n + 1
  */
-const relativeStrengthIndex = ( xohlcValues: XOHLC[], n: number ): Point[] => {
+const relativeStrengthIndex = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
+    const len = xohlcValues.length
     const result: Point[] = []
-
+    const upValues: number[] = []
+    const downValues: number[] = []
+    let prevValue: number | undefined
+    for ( let i = 0; i < len; i ++ ) {
+        // Use close value for RSI.
+        const value = xohlcValues[i][4]
+        if ( prevValue !== undefined ) {
+            const diff = value - prevValue
+            if ( diff > 0 ) {
+                upValues[i] = diff
+                downValues[i] = 0
+            } else {
+                downValues[i] = -diff   // Use positive value
+                upValues[i] = 0
+            }
+        }
+        //don't put anything to up and dn first item. It's not used 
+        prevValue = value
+    }
+    for ( let i = averagingFrameLength; i < len; i ++ ) {
+        let avgUpSum = 0
+        let avgDownSum = 0
+        let count = 0
+        for ( let j = i; j > i - averagingFrameLength; j-- ) {
+            avgUpSum += upValues[ j ]
+            avgDownSum += downValues[ j ]
+            count ++
+        }
+        const avgUp = avgUpSum / count
+        const avgDown = avgDownSum / count
+        const rsi = 100 - ( 100 / ( 1 + avgUp / avgDown ) )
+        result.push({ x: xohlcValues[i][0], y: rsi })
+    }
     return result
 }
 
@@ -600,20 +643,26 @@ const relativeStrengthIndex = ( xohlcValues: XOHLC[], n: number ): Point[] => {
 //#region ----- Style application -----
 // Manage Colors and derived Styles using Enums and Maps.
 enum AppColor {
+    White,
     LightBlue,
     DarkBlue,
     DarkBlueTransparent,
     Purplish,
-    DimRed,
-    DimGreen
+    Red,
+    RedTransparent,
+    Green,
+    GreenTransparent
 }
 const colors = new Map<AppColor, Color>()
+colors.set( AppColor.White, ColorHEX('#FFF') )
 colors.set( AppColor.LightBlue, ColorRGBA( 162, 191, 244 ) )
 colors.set( AppColor.DarkBlue, ColorRGBA( 75, 99, 143 ) )
 colors.set( AppColor.DarkBlueTransparent, colors.get( AppColor.DarkBlue ).setA(120) )
 colors.set( AppColor.Purplish, ColorRGBA( 209, 44, 144 ) )
-colors.set( AppColor.DimRed, ColorRGBA( 73, 32, 46 ) )
-colors.set( AppColor.DimGreen, ColorRGBA( 23, 93, 45 ) )
+colors.set( AppColor.Red, ColorRGBA( 219, 40, 68 ) )
+colors.set( AppColor.RedTransparent, colors.get( AppColor.Red ).setA(120) )
+colors.set( AppColor.Green, ColorRGBA( 28, 231, 69 ) )
+colors.set( AppColor.GreenTransparent, colors.get( AppColor.Green ).setA(120) )
 
 
 const solidFills = new Map<AppColor, SolidFill>()
@@ -694,15 +743,18 @@ if ( seriesBollinger )
         .setLowFillStyle( solidFills.get( AppColor.DarkBlueTransparent ) )
         .setHighStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
         .setLowStrokeStyle( solidLines.get( AppColor.LightBlue ).get( AppLineThickness.Thin ) )
+if ( seriesRSI )
+    seriesRSI
+        .setStrokeStyle( solidLines.get( AppColor.White ).get( AppLineThickness.Thin ) )
 
 // Style RSI ticks.
 if ( tickRSIThresholdLow )
     tickRSIThresholdLow
-        .setGridStrokeStyle( solidLines.get( AppColor.DimGreen ).get( AppLineThickness.Thin ) )
+        .setGridStrokeStyle( solidLines.get( AppColor.GreenTransparent ).get( AppLineThickness.Thin ) )
 
 if ( tickRSIThresholdHigh )
 tickRSIThresholdHigh
-        .setGridStrokeStyle( solidLines.get( AppColor.DimRed ).get( AppLineThickness.Thin ) )
+        .setGridStrokeStyle( solidLines.get( AppColor.RedTransparent ).get( AppLineThickness.Thin ) )
 
 // TODO: ResultTableFormatters.
 
