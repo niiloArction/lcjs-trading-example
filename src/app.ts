@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter, AutoCursorXY } from "@arction/lcjs"
 
 //#region ----- Application configuration -----
 
@@ -502,7 +502,11 @@ const renderOHLCData = ( data: AppDataFormat ) => {
     masterAxis.fit()
 
     // Set title of OHLC Chart to show name data.
-    chartOHLCTitle.setText( data.name )
+    if ( chartOHLCTitle )
+        chartOHLCTitle.setText( data.name )
+    // Also set name of OHLC Series.
+    if ( seriesOHLC )
+        seriesOHLC.setName( data.name )
 
 }
 
@@ -881,8 +885,8 @@ tickRSIThresholdHigh
 const dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
 const resultTableFormatter = (( tableContentBuilder, series, x, y ) => tableContentBuilder
-    .addRow( series.getName(), '', series.axisY.formatValue( y ) )
     .addRow( dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) ) )
+    .addRow( series.getName(), '', series.axisY.formatValue( y ) )
 ) as RangeSeriesFormatter & SeriesXYFormatter
 if ( seriesSMA )
     seriesSMA.setResultTableFormatter( resultTableFormatter )
@@ -892,15 +896,33 @@ if ( seriesVolume )
     seriesVolume.setResultTableFormatter( resultTableFormatter )
 if ( seriesRSI )
     seriesRSI.setResultTableFormatter( resultTableFormatter )
+if ( seriesOHLC )
+    seriesOHLC.setResultTableFormatter(( tableContentBuilder, series, ohlcSegment ) => tableContentBuilder
+        .addRow( series.getName() )
+        .addRow( series.axisX.formatValue( ohlcSegment.getPosition() ) )
+        .addRow( 'Open', '', series.axisY.formatValue( ohlcSegment.getOpen() ) )
+        .addRow( 'High', '', series.axisY.formatValue( ohlcSegment.getHigh() ) )
+        .addRow( 'Low', '', series.axisY.formatValue( ohlcSegment.getLow() ) )
+        .addRow( 'Close', '', series.axisY.formatValue( ohlcSegment.getClose() ) )
+    )
+
+// Enable AutoCursor auto coloring based on picked series.
+const enableAutoCursorAutoColoring = ( autoCursor: AutoCursorXY ) => autoCursor
+    .setResultTableAutoTextStyle( true )
+    .setTickMarkerXAutoTextStyle( true )
+    .setTickMarkerYAutoTextStyle( true )
+if ( chartOHLC )
+    chartOHLC.setAutoCursor( enableAutoCursorAutoColoring )
+if ( chartVolume )
+    chartVolume.setAutoCursor( enableAutoCursorAutoColoring )
+if ( chartRSI )
+    chartRSI.setAutoCursor( enableAutoCursorAutoColoring )
 
 if ( seriesBollinger )
     // No Cursor picking for Bollinger Bands.
     seriesBollinger
         .setMouseInteractions( false )
         .setCursorEnabled( false )
-
-        // TODO: Cursor coloring
-        // TODO: OHLC ResultTable formatting.
 
 //#endregion
 
