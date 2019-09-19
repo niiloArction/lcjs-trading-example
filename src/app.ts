@@ -856,7 +856,8 @@ for ( let i = 0; i < charts.length; i ++ ) {
 for ( const title of chartTitles )
     if ( title )
         title
-            .setTextFillStyle( solidFills.get( AppColor.Blue ) )
+            .setTextFillStyle( solidFills.get( AppColor.LightBlue ) )
+            .setFont(( font ) => font.setWeight( 'bold' ))
 
 // Push all charts left sides equal distance away from left border.
 // TODO: Is there any way to do this without adding invisible custom ticks?
