@@ -47,6 +47,8 @@ let dataSourceApiToken: string | undefined
 
 //#endregion
 
+//#region ----- Application logic -----
+
 //#region ----- Read worldtradingdata.com API token from local file 'wtd-token.json' -----
 if ( dataSource === DataSources.WorldTradingData ) {
     try {
@@ -794,8 +796,11 @@ const relativeStrengthIndex = ( xohlcValues: XOHLC[], averagingFrameLength: numb
 
 //#endregion
 
+//#endregion
+
 //#region ----- Style application -----
-// Manage Colors and derived Styles using Enums and Maps.
+
+//#region ----- Manage Colors and derived Styles using Enums and Maps.
 enum AppColor {
     White,
     LightBlue,
@@ -822,7 +827,6 @@ colors.set( AppColor.RedTransparent, colors.get( AppColor.Red ).setA(120) )
 colors.set( AppColor.Green, ColorRGBA( 28, 231, 69 ) )
 colors.set( AppColor.GreenTransparent, colors.get( AppColor.Green ).setA(120) )
 
-
 const solidFills = new Map<AppColor, SolidFill>()
 colors.forEach((color, key) => solidFills.set( key, new SolidFill({ color }) ))
 
@@ -834,11 +838,12 @@ colors.forEach((_, key) => {
     thicknessMap.set( AppLineThickness.Thick, new SolidLine({ thickness: 4, fillStyle: solidFills.get( key ) }) )
     solidLines.set( key, thicknessMap )
 })
+//#endregion
 
 // Style Dashboard.
 // TODO: No API for styling Dashboard splitter color?
 
-// Style Charts.
+//#region ----- Style Charts -----
 for ( let i = 0; i < charts.length; i ++ ) {
     const chart = charts[i]
     if ( chart ) {
@@ -874,8 +879,9 @@ for ( const chart of charts )
 
 // Add top padding to very first Chart, so nothing is hidden by data-search input.
 charts[0].setPadding({ top: 30 })
+//#endregion
 
-// Style Axes.
+//#region ----- Style Axes -----
 for ( let i = 0; i < charts.length; i ++ ) {
     const chart = charts[i]
     if ( chart !== undefined ) {
@@ -921,8 +927,9 @@ for ( const tick of ticksRSI )
 tickWithoutBackgroundBuilder = tickWithoutBackgroundBuilder.addStyler(( tick ) => tick
     .setTextFillStyle( solidFills.get( AppColor.LightBlue ) )
 )
+//#endregion
 
-// Style Series.
+//#region ----- Style Series -----
 if ( seriesOHLC )
     seriesOHLC
         .setPositiveStyle((candlestick) => candlestick
@@ -963,8 +970,9 @@ if ( tickRSIThresholdLow )
 if ( tickRSIThresholdHigh )
 tickRSIThresholdHigh
         .setGridStrokeStyle( solidLines.get( AppColor.RedTransparent ).get( AppLineThickness.Thin ) )
+//#endregion
 
-// Style ResultTable Formatters.
+//#region ----- Style ResultTables -----
 // TODO: Different formatter based on Axis zoom level.
 dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
@@ -1034,5 +1042,6 @@ if ( seriesBollinger )
     seriesBollinger
         .setMouseInteractions( false )
         .setCursorEnabled( false )
+//#endregion
 
 //#endregion
