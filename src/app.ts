@@ -843,6 +843,19 @@ for ( let i = 0; i < charts.length; i ++ ) {
         const axes = [ axisX, axisY ]
         const isChartWithMasterAxis = axisX === masterAxis
 
+        for ( const axis of axes ) { 
+            const tickStyle = axis.getTickStyle()
+            if ( tickStyle !== emptyTick )
+                axis
+                    .setTickStyle((tickStyle: VisibleTicks) => tickStyle
+                        .setLabelFillStyle( solidFills.get( AppColor.LightBlue ) )
+                        .setTickStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
+                    )
+            axis
+                .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thick ) )
+                .setNibStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thick ) )
+        }
+        
         if ( ! isChartWithMasterAxis ) {
             // This Charts X Axis will be hidden, and configured to scroll according to the master Axis.
             axisX
@@ -861,18 +874,6 @@ for ( let i = 0; i < charts.length; i ++ ) {
                     // Hide GridLines, but keep ticks.
                     .setGridStrokeStyle( transparentLine )
                 )
-        }
-        for ( const axis of axes ) { 
-            const tickStyle = axis.getTickStyle()
-            if ( tickStyle !== emptyTick )
-                axis
-                    .setTickStyle((tickStyle: VisibleTicks) => tickStyle
-                        .setLabelFillStyle( solidFills.get( AppColor.LightBlue ) )
-                        .setTickStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thin ) )
-                    )
-            axis
-                .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thick ) )
-                .setNibStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thick ) )
         }
     }
 }
