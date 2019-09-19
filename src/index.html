@@ -11,6 +11,9 @@
             margin: 0;
             padding: 0;
         }
+        label {
+            color: white;
+        }
         #trading-chart-container {
             width: 100%;
             height: 100%;
@@ -42,6 +45,12 @@
         >
             Search
         </button>
+        <input id='trading-data-search-range-1' name='data-range' type='radio'></input>
+        <label>1M</label>
+        <input id='trading-data-search-range-2' name='data-range' type='radio' checked='checked'></input>
+        <label>1Y</label>
+        <input id='trading-data-search-range-3' name='data-range' type='radio'></input>
+        <label>10Y</label>
     </div>
   </body>
 </html>
