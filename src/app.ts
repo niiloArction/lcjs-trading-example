@@ -106,10 +106,20 @@ const dashboard = lightningChart().Dashboard({
 //#endregion
 
 // Create custom X tick strategy for indexed Date values. Object must fulfill interface: AxisTickStrategy.
+let dateTimeFormatter
 const dateTimeTickStrategy = {
     computeMinimalPrecision: AxisTickStrategies.Numeric.computeMinimalPrecision,
     formatValue: ( x: number ) => dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) )
 }
+// Builder for CustomTicks ticks with no Background.
+let tickWithoutBackgroundBuilder = UIElementBuilders.PointableTextBox
+    .addStyler(( pointableTextBox ) => pointableTextBox
+        .setBackground(( background ) => background
+            .setFillStyle( emptyFill )
+            .setStrokeStyle( emptyLine )
+            .setPointerLength( 0 )
+        )
+    )
 
 //#region ----- Create OHLC Chart -----
 let chartOHLC: ChartXY | undefined
@@ -294,16 +304,6 @@ if ( chartConfigRSI.show ) {
         // RSI interval always from 0 to 100.
         .setInterval( 0, 100 )
         .setScrollStrategy( undefined )
-    
-    // Create ticks with no Background.
-    const tickWithoutBackgroundBuilder = UIElementBuilders.PointableTextBox
-        .addStyler(( pointableTextBox ) => pointableTextBox
-            .setBackground(( background ) => background
-                .setFillStyle( emptyFill )
-                .setStrokeStyle( emptyLine )
-                .setPointerLength( 0 )
-            )
-        )
 
     // TODO: What is this TypeScript error? This should be the right builder.
     ticksRSI.push( axisY.addCustomTick( <any>tickWithoutBackgroundBuilder )
@@ -349,7 +349,7 @@ const HandleScaleChangeX = ( chartIndex: number ) => {
         for ( let i = 0; i < charts.length; i ++ ) {
             if ( chartConfigs[i].show ) {
                 const axis = charts[ i ].getDefaultAxisX()
-                if ( i !== chartIndex && axis.scale.getInnerStart() !== start && axis.scale.getInnerEnd() !== end )
+                if ( i !== chartIndex && (axis.scale.getInnerStart() !== start || axis.scale.getInnerEnd() !== end) )
                     axis.setInterval( start, end )
             }
         }
@@ -509,16 +509,42 @@ const renderOHLCData = ( data: AppDataFormat ) => {
 
     // Set title of OHLC Chart to show name data.
     if ( chartOHLCTitle )
-        chartOHLCTitle.setText( data.name )
+        chartOHLCTitle.setText( `${data.name} (1 year)` )
     // Also set name of OHLC Series.
     if ( seriesOHLC )
         seriesOHLC.setName( data.name )
+
+    // ----- Add CustomTicks on to of default DateTime Ticks to indicate relevant dates -----
+    const startOfMonthFormatter = new Intl.DateTimeFormat( undefined, { month: 'short' } )
+
+    let prevMonth: number | undefined
+    for ( let x = 0; x < dataKeysLen; x ++ ) {
+        const date = getDateFromIndex( x )
+        const month = date.getMonth()
+        if ( prevMonth === undefined || month !== prevMonth ) {
+            // Start of Month tick.
+            // TODO: What is this error? It should be correct builder type.
+            masterAxis.addCustomTick( <any>tickWithoutBackgroundBuilder )
+                .setValue( x )
+                // No gridlines.
+                .setGridStrokeLength( 0 )
+                // Custom formatting.
+                .setTextFormatter(( x ) => startOfMonthFormatter.format( getDateFromIndex( Math.round( x ) ) ))
+            prevMonth = month
+        }
+    }
 
 }
 
 //#endregion
 
 //#region ----- REST logic for fetching data -----
+
+const maxAveragingFrameLength = Math.max(
+    chartConfigOHLC.sma.averagingFrameLength,
+    chartConfigOHLC.bollinger.averagingFrameLength,
+    chartConfigRSI.averagingFrameLength
+)
 
 // Function that handles event where data search failed.
 const dataSearchFailed = ( searchSymbol: string ) => {
@@ -546,7 +572,20 @@ const searchData = ( searchSymbol: string ) => {
          *
          * YYYY-MM-DD
          */
-        const date_from: string = '2019-01-01'
+        let date_from: string
+        const now = new Date()
+        const nBack = new Date(
+            now.getTime() +
+            // 1 Year.
+            ( -1 * 365 * 24 * 60 * 60 * 1000 ) +
+            // Load extra data based on averagingFrameLength.
+            ( -2 * maxAveragingFrameLength * 24 * 60 * 60 * 1000 )
+        )
+        const year = nBack.getUTCFullYear()
+        const month = nBack.getUTCMonth() + 1
+        const date = nBack.getUTCDate()
+        date_from = `${year}-${month >= 10 ? '' : 0}${month}-${date >= 10 ? '' : 0}${date}`
+        console.log('Data from',date_from)
         /**
          * Sorting basis.
          */
@@ -710,7 +749,8 @@ const bollingerBands = ( xohlcValues: XOHLC[], averagingFrameLength: number  ): 
  * Calculate RSI values from XOHLC 'close' values.
  * @param   xohlcValues             Array of XOHLC values.
  * @param   averagingFrameLength    Length of averaging frame.
- * @return                          Relative Strength Index values. Length of this array is equal to xohlcValues.length - n + 1
+ * @return                          Relative Strength Index values.
+ *                                  Length of this array is equal to xohlcValues.length - averagingFrameLength + 1
  */
 const relativeStrengthIndex = ( xohlcValues: XOHLC[], averagingFrameLength: number ): Point[] => {
     const len = xohlcValues.length
@@ -855,25 +895,19 @@ for ( let i = 0; i < charts.length; i ++ ) {
                 .setStrokeStyle( solidLines.get( AppColor.Blue ).get( AppLineThickness.Thick ) )
                 .setNibStyle( solidLines.get( AppColor.Red ).get( AppLineThickness.Thick ) )
         }
-        
+        axisX
+            .setTickStyle(emptyTick)
+
         if ( ! isChartWithMasterAxis ) {
-            // This Charts X Axis will be hidden, and configured to scroll according to the master Axis.
+            // This Charts X Axis is configured to scroll according to the master Axis.
             axisX
-                .setTickStyle(emptyTick)
-                .setStrokeStyle( emptyLine )
-                // TODO: Why cant Nibs be hidden?
-                .setNibStyle( <any>emptyLine )
                 // Disable scrolling.
                 .setScrollStrategy( undefined )
                 // Disable mouse interactions on hidden Axes.
                 .setMouseInteractions( false )
-        } else {
-            // This Chart has the Master Axis.
-            axisX
-                .setTickStyle((ticks: VisibleTicks) => ticks
-                    // Hide GridLines, but keep ticks.
-                    .setGridStrokeStyle( transparentLine )
-                )
+                .setStrokeStyle( emptyLine )
+                // TODO: Why cant Nibs be hidden?
+                .setNibStyle( <any>emptyLine )
         }
     }
 }
@@ -882,6 +916,10 @@ for ( const tick of ticksRSI )
         .setMarker(( marker ) => marker
             .setTextFillStyle( solidFills.get( AppColor.LightBlue ) )
         )
+// Style CustomTicks created when rendering.
+tickWithoutBackgroundBuilder = tickWithoutBackgroundBuilder.addStyler(( tick ) => tick
+    .setTextFillStyle( solidFills.get( AppColor.LightBlue ) )
+)
 
 // Style Series.
 if ( seriesOHLC )
@@ -927,7 +965,7 @@ tickRSIThresholdHigh
 
 // Style ResultTable Formatters.
 // TODO: Different formatter based on Axis zoom level.
-const dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
+dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
 const resultTableFormatter = (( tableContentBuilder, series, x, y ) => tableContentBuilder
     .addRow( dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) ) )
