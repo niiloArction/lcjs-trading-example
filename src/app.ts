@@ -4,7 +4,7 @@ import { simpleMovingAverage, exponentialMovingAverage, bollingerBands, relative
 //#region ----- Application configuration -----
 
 // To disable/enable/modify charts inside application, alter values below:
-// averagingFrameLength is in "periods", practically the opening time of stock marker.
+// averagingFrameLength is in "periods", 1 period = the opening time of stock marker for one week-day.
 
 const chartConfigOHLC = {
     show: true,
