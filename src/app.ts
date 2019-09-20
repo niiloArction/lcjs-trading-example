@@ -4,6 +4,7 @@ import { simpleMovingAverage, exponentialMovingAverage, bollingerBands, relative
 //#region ----- Application configuration -----
 
 // To disable/enable/modify charts inside application, alter values below:
+// averagingFrameLength is in "periods", practically the opening time of stock marker.
 
 const chartConfigOHLC = {
     show: true,
@@ -13,7 +14,8 @@ const chartConfigOHLC = {
      */
     sma: {
         show: true,
-        averagingFrameLength: 13
+        averagingFrameLength: 13, // history data : 13 days.
+        averagingFrameLengthIntraday: 1 // intraday data : 1 day
     },
     /**
      * Exponential Moving Average.
@@ -28,7 +30,8 @@ const chartConfigOHLC = {
      */
     bollinger: {
         show: true,
-        averagingFrameLength: 13
+        averagingFrameLength: 13, // history data : 13 days.
+        averagingFrameLengthIntraday: 1 // intraday data : 1 day
     }
 }
 const chartConfigVolume = {
@@ -38,7 +41,8 @@ const chartConfigVolume = {
 const chartConfigRSI = {
     show: true,
     verticalSpans: 1,
-    averagingFrameLength: 13
+    averagingFrameLength: 13, // history data : 13 days.
+    averagingFrameLengthIntraday: 1 // intraday data : 1 day
 }
 
 // Market data is currently always requested and parsed from worldtradingdata.com
@@ -186,7 +190,8 @@ if ( chartConfigOHLC.show ) {
     if ( chartConfigOHLC.sma.show ) {
         // Create SMA Series.
         seriesSMA = chartOHLC.addLineSeries({
-            dataPattern: DataPatterns.horizontalProgressive
+            // Use freeform to behave similarly as OHLC ( freeform mouse-picking ).
+            dataPattern: DataPatterns.freeform
         })
             .setName( 'SMA' )
             // Disable data-cleaning.
@@ -197,7 +202,8 @@ if ( chartConfigOHLC.show ) {
     if ( chartConfigOHLC.ema.show ) {
         // Create EMA Series.
         seriesEMA = chartOHLC.addLineSeries({
-            dataPattern: DataPatterns.horizontalProgressive
+            // Use freeform to behave similarly as OHLC ( freeform mouse-picking ).
+            dataPattern: DataPatterns.freeform
         })
             .setName( 'EMA' )
             // Disable data-cleaning.
@@ -445,7 +451,31 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
         new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'short', minute: 'numeric', hour: 'numeric' } ) :
         new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
+    // Translate averagingFrameLengths to days.
+    // Count amount of data-points per day (assumed to be roughly the same for each day).
+    let firstDays = []
+    let dataPointsPerDay: number
+    for ( let x = 0; x < dataKeysLen; x ++ ) {
+        const date = getDateFromIndex( x ).getDate()
+        if ( firstDays.length === 0 )
+            firstDays[0] = { date, x }
+        else {
+            if ( firstDays.length === 1 ) {
+                if ( date !== firstDays[0].date )
+                    firstDays[1] = { date, x }
+            } else {
+                if ( date !== firstDays[1].date ) {
+                    dataPointsPerDay = x - firstDays[1].x
+                    break
+                }
+            }
+        }
+    }
+    console.log(dataPointsPerDay)
+
     //#region ----- Render data -----
+    const averagingFrameLength = dataRange === DataRange.Short ? 'averagingFrameLengthIntraday' : 'averagingFrameLength'
+
     //#region OHLC.
     if ( seriesOHLC ) {
         seriesOHLC
@@ -457,7 +487,7 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     //#region SMA.
     if ( seriesSMA ) {
         // Compute SMA values from XOHLC values using data-analysis library.
-        const smaValues = simpleMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        const smaValues = simpleMovingAverage( xohlcValues, Math.round(chartConfigOHLC.sma[averagingFrameLength] * dataPointsPerDay) )
         seriesSMA
             .clear()
             .add( smaValues )
@@ -467,7 +497,7 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     //#region EMA.
     if ( seriesEMA ) {
         // Compute EMA values from XOHLC values using data-analysis library.
-        const emaValues = exponentialMovingAverage( xohlcValues, chartConfigOHLC.sma.averagingFrameLength )
+        const emaValues = exponentialMovingAverage( xohlcValues, Math.round(chartConfigOHLC.sma[averagingFrameLength] * dataPointsPerDay) )
         seriesEMA
             .clear()
             .add( emaValues )
@@ -477,7 +507,7 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     //#region Bollinger.
     if ( seriesBollinger ) {
         // Compute Bollinger bands points.
-        const bollingerBandPoints = bollingerBands( xohlcValues, chartConfigOHLC.bollinger.averagingFrameLength )
+        const bollingerBandPoints = bollingerBands( xohlcValues, Math.round(chartConfigOHLC.bollinger[averagingFrameLength] * dataPointsPerDay) )
         seriesBollinger
             .clear()
             .add( bollingerBandPoints )
@@ -510,7 +540,7 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     //#endregion
     if ( seriesRSI ) {
         // Compute RSI values from XOHLC values using data-analysis library.
-        const rsiValues = relativeStrengthIndex( xohlcValues, chartConfigRSI.averagingFrameLength )
+        const rsiValues = relativeStrengthIndex( xohlcValues, Math.round( chartConfigRSI[averagingFrameLength] * dataPointsPerDay ) )
         seriesRSI
             .clear()
             .add( rsiValues )
@@ -526,7 +556,7 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     if ( chartVolume )
         chartVolume.getDefaultAxisY().fit( true )
     if ( chartRSI )
-        chartRSI.getDefaultAxisY().fit( true )
+        chartRSI.getDefaultAxisY().setInterval( 0, 100 )
 
     // Set title of OHLC Chart to show name data.
     if ( chartOHLCTitle ) {
