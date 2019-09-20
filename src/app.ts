@@ -1,4 +1,4 @@
-import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter, AutoCursorXY, AreaSeriesPositive, UIDraggingModes } from "@arction/lcjs"
+import { lightningChart, emptyFill, ChartXY, LineSeries, AreaRangeSeries, OHLCSeriesTraditional, OHLCCandleStick, OHLCFigures, XOHLC, Point, AxisTickStrategies, Axis, VisibleTicks, emptyLine, transparentFill, emptyTick, transparentLine, AreaSeries, AreaSeriesTypes, ColorRGBA, Color, SolidFill, AreaPoint, SolidLine, DataPatterns, MarkerBuilders, UIElementBuilders, CustomTick, ColorHEX, UITextBox, UIOrigins, TableContentBuilder, SeriesXY, RangeSeriesFormatter, SeriesXYFormatter, AutoCursorXY, AreaSeriesPositive, UIDraggingModes, translatePoint } from "@arction/lcjs"
 import { simpleMovingAverage, exponentialMovingAverage, bollingerBands, relativeStrengthIndex  } from '@arction/lcjs-analysis'
 
 //#region ----- Application configuration -----
@@ -75,10 +75,7 @@ Register at ${registerUrl} for free, and write your API token to file: 'wtd-toke
 const domElementIDs = {
     chartContainer: 'trading-chart-container',
     dataSearchInput: 'trading-data-search-input',
-    dataSearchActivate: 'trading-data-search-activate',
-    dataSearchRange1: 'trading-data-search-range-1',
-    dataSearchRange2: 'trading-data-search-range-2',
-    dataSearchRange3: 'trading-data-search-range-3'
+    dataSearchActivate: 'trading-data-search-activate'
 }
 const domElements = new Map<string, HTMLElement>()
 Object.keys(domElementIDs).forEach((key) => {
@@ -88,13 +85,6 @@ Object.keys(domElementIDs).forEach((key) => {
         throw new Error( 'DOM element not found: ' + domElementID )
     domElements.set( domElementID, domElement )
 })
-
-enum DataRange { Short, Medium, Long }
-let dataRange = DataRange.Medium
-domElements.get( domElementIDs.dataSearchRange1 ).onchange = () => dataRange = DataRange.Short
-domElements.get( domElementIDs.dataSearchRange2 ).onchange = () => dataRange = DataRange.Medium
-domElements.get( domElementIDs.dataSearchRange3 ).onchange = () => dataRange = DataRange.Long
-
 //#endregion
 
 //#region ----- Create Dashboard and Charts -----
@@ -394,16 +384,17 @@ interface StringOHLCWithVolume {
     open: string
     volume: string
 }
-/**
- * AppDataFormat is an object whose keys are UTC Dates as Strings.
- * 
- * Each value is an OHLC value with an additional 'volume'-field.
- * Note that at this stage values are strings, not numbers! To use with LCJS they must be parsed to Numbers.
- */
-type AppDataFormat = { [key: string]: StringOHLCWithVolume }
-
-const dateTimeTicks: CustomTick[] = []
-const renderOHLCData = ( name: string, data: AppDataFormat ) => {
+interface AppDataFormat {
+    name: string,
+    /**
+     * 'history' is an object whose keys are UTC Dates as Strings.
+     * 
+     * Each value is an OHLC value with an additional 'volume'-field.
+     * Note that at this stage values are strings, not numbers! To use with LCJS they must be parsed to Numbers.
+     */
+    history: { [key: string]: StringOHLCWithVolume }
+}
+const renderOHLCData = ( data: AppDataFormat ) => {
     //#region ----- Prepare data for rendering with LCJS -----
     // Map values to LCJS accepted format, with an additional X value.
     const xohlcValues: XOHLC[] = []
@@ -414,12 +405,12 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     const tStart = window.performance.now()
 
     // Get starting Date from first item.
-    const dataKeys = Object.keys( data )
+    const dataKeys = Object.keys( data.history )
     const dataKeysLen = dataKeys.length
     // Index data-values starting from X = 0.
     for ( let x = 0; x < dataKeysLen; x ++ ) {
         const key = dataKeys[ x ]
-        const stringValues = data[ key ]
+        const stringValues = data.history[ key ]
         const o = Number( stringValues.open )
         const h = Number( stringValues.high )
         const l = Number( stringValues.low )
@@ -441,10 +432,6 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
         else
             return undefined
     }
-    // Set DateTimeFormatter.
-    dateTimeFormatter = dataRange === DataRange.Short ?
-        new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'short', minute: 'numeric', hour: 'numeric' } ) :
-        new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
     //#region ----- Render data -----
     //#region OHLC.
@@ -520,92 +507,36 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     console.log(`Prepared data in ${((window.performance.now() - tStart) / 1000).toFixed(1)} s`)
     console.log(`${xohlcValuesLen} XOHLC values, ${volumeValuesLen} Volume values.`)
 
-    // Fit new data to view.
-    masterAxis.fit( false )
-    if ( chartOHLC )
-        chartOHLC.getDefaultAxisY().fit( true )
-    if ( chartVolume )
-        chartVolume.getDefaultAxisY().fit( true )
-    if ( chartRSI )
-        chartRSI.getDefaultAxisY().fit( true )
+    // Fit new data to X view (automatic X scrolling is disabled in application).
+    masterAxis.fit()
 
     // Set title of OHLC Chart to show name data.
-    if ( chartOHLCTitle ) {
-        const dataRangeLabel = dataRange === DataRange.Short ?
-            '1 month' : ( dataRange === DataRange.Medium ?
-                '1 year' :
-                '10 years'
-            )
-        chartOHLCTitle.setText( `${name} (${dataRangeLabel})` )
-    }
+    if ( chartOHLCTitle )
+        chartOHLCTitle.setText( `${data.name} (1 year)` )
     // Also set name of OHLC Series.
     if ( seriesOHLC )
-        seriesOHLC.setName( name )
+        seriesOHLC.setName( data.name )
 
     // ----- Add CustomTicks on to of default DateTime Ticks to indicate relevant dates -----
-    for ( const tick of dateTimeTicks )
-        tick.dispose()
-    dateTimeTicks.length = 0
+    const startOfMonthFormatter = new Intl.DateTimeFormat( undefined, { month: 'short' } )
 
-    // Different Ticks based on data range.
-    if ( dataRange === DataRange.Short ) {
-        // Each day has its own tick.
-        const dayFormatter = new Intl.DateTimeFormat( undefined, { day: '2-digit' } )
-        let prevDay: number | undefined
-        for ( let x = 0; x < dataKeysLen; x ++ ) {
-            const date = getDateFromIndex( x )
-            const day = date.getDate()
-            if ( prevDay === undefined || day !== prevDay ) {
-                // TODO: What is this error? It should be correct builder type.
-                dateTimeTicks.push(masterAxis.addCustomTick( <any>tickWithoutBackgroundBuilder )
-                    .setValue( x )
-                    // No gridlines.
-                    .setGridStrokeLength( 0 )
-                    // Custom formatting.
-                    .setTextFormatter(( x ) => dayFormatter.format( getDateFromIndex( Math.round( x ) ) ))
-                )
-                prevDay = day
-            }
-        }
-    } else if ( dataRange === DataRange.Medium ) {
-        // Each month has its own tick.
-        const startOfMonthFormatter = new Intl.DateTimeFormat( undefined, { month: 'short' } )
-        let prevMonth: number | undefined
-        for ( let x = 0; x < dataKeysLen; x ++ ) {
-            const date = getDateFromIndex( x )
-            const month = date.getMonth()
-            if ( prevMonth === undefined || month !== prevMonth ) {
-                // TODO: What is this error? It should be correct builder type.
-                dateTimeTicks.push(masterAxis.addCustomTick( <any>tickWithoutBackgroundBuilder )
-                    .setValue( x )
-                    // No gridlines.
-                    .setGridStrokeLength( 0 )
-                    // Custom formatting.
-                    .setTextFormatter(( x ) => startOfMonthFormatter.format( getDateFromIndex( Math.round( x ) ) ))
-                )
-                prevMonth = month
-            }
-        }
-    } else if ( dataRange === DataRange.Long ) {
-        // Each year has its own tick.
-        const dayFormatter = new Intl.DateTimeFormat( undefined, { year: 'numeric' } )
-        let prevYear: number | undefined
-        for ( let x = 0; x < dataKeysLen; x ++ ) {
-            const date = getDateFromIndex( x )
-            const year = date.getFullYear()
-            if ( prevYear === undefined || year !== prevYear ) {
-                // TODO: What is this error? It should be correct builder type.
-                dateTimeTicks.push(masterAxis.addCustomTick( <any>tickWithoutBackgroundBuilder )
-                    .setValue( x )
-                    // No gridlines.
-                    .setGridStrokeLength( 0 )
-                    // Custom formatting.
-                    .setTextFormatter(( x ) => dayFormatter.format( getDateFromIndex( Math.round( x ) ) ))
-                )
-                prevYear = year
-            }
+    let prevMonth: number | undefined
+    for ( let x = 0; x < dataKeysLen; x ++ ) {
+        const date = getDateFromIndex( x )
+        const month = date.getMonth()
+        if ( prevMonth === undefined || month !== prevMonth ) {
+            // Start of Month tick.
+            // TODO: What is this error? It should be correct builder type.
+            masterAxis.addCustomTick( <any>tickWithoutBackgroundBuilder )
+                .setValue( x )
+                // No gridlines.
+                .setGridStrokeLength( 0 )
+                // Custom formatting.
+                .setTextFormatter(( x ) => startOfMonthFormatter.format( getDateFromIndex( Math.round( x ) ) ))
+            prevMonth = month
         }
     }
+
 }
 
 //#endregion
@@ -640,59 +571,30 @@ const searchData = ( searchSymbol: string ) => {
          */
         const apiToken: 'demo' | string = dataSourceApiToken
         /**
+         * Start date of data retrieval.
+         *
+         * YYYY-MM-DD
+         */
+        let date_from: string
+        const now = new Date()
+        const nBack = new Date(
+            now.getTime() +
+            // 1 Year.
+            ( -1 * 365 * 24 * 60 * 60 * 1000 ) +
+            // Load extra data based on averagingFrameLength.
+            ( -2 * maxAveragingFrameLength * 24 * 60 * 60 * 1000 )
+        )
+        const year = nBack.getUTCFullYear()
+        const month = nBack.getUTCMonth() + 1
+        const date = nBack.getUTCDate()
+        date_from = `${year}-${month >= 10 ? '' : 0}${month}-${date >= 10 ? '' : 0}${date}`
+        console.log('Data from',date_from)
+        /**
          * Sorting basis.
          */
         const sort: 'asc' | 'desc' | 'newest' | 'oldest' = 'asc'
-        let dataRangeQuery: string
-        let mode: 'history' | 'intraday'
-        
-        if ( dataRange !== DataRange.Short ) {
-            // HISTORY data.
-            /**
-             * Start date of HISTORY data retrieval.
-             *
-             * YYYY-MM-DD
-             */
-            let date_from: string = ''
 
-            const now = new Date()
-            const dataRangeTime = dataRange === DataRange.Medium ?
-                    // 1 Year.
-                    1 * 365 * 24 * 60 * 60 * 1000 :
-                    // 10 Years.
-                    10 * 365 * 24 * 60 * 60 * 1000
-            const nBack = new Date(
-                now.getTime() +
-                ( -dataRangeTime ) +
-                // Load extra data based on averagingFrameLength.
-                ( -2 * maxAveragingFrameLength * 24 * 60 * 60 * 1000 )
-            )
-            const year = nBack.getUTCFullYear()
-            const month = nBack.getUTCMonth() + 1
-            const date = nBack.getUTCDate()
-            date_from = `${year}-${month >= 10 ? '' : 0}${month}-${date >= 10 ? '' : 0}${date}`
-            console.log('Data from',date_from)
-
-            mode = 'history'
-            dataRangeQuery = `date_from=${date_from}`
-        } else {
-            // INTRADAY data.
-            /**
-             * Number of minutes between data points for INTRADAY data retrieval.
-             */
-            let interval: string = ''
-            /**
-             * Number of days data is returned for INTRADAY data retrieval.
-             */
-            let range: string = ''
-
-            interval = '5'
-            range = '30'
-
-            mode = 'intraday'
-            dataRangeQuery = `interval=${interval}&range=${range}`
-        }
-        fetch(`https://www.worldtradingdata.com/api/v1/${mode}?${dataRangeQuery}&symbol=${symbol}&sort=${sort}&api_token=${apiToken}`)
+        fetch(`https://www.worldtradingdata.com/api/v1/history?symbol=${symbol}&date_from=${date_from}&sort=${sort}&api_token=${apiToken}`)
             // It would seem that worldtradingdata.com doesn't set response.ok flag when requested stock is not found.    
             // .then((response) => {
             //     if (! response.ok)
@@ -701,15 +603,14 @@ const searchData = ( searchSymbol: string ) => {
             //         return response
             // })
             .then((response) => response.json())
-            .then((result) => {
+            .then((data: AppDataFormat) => {
                 // Check for static error message.
-                if ( 'Message' in result ) {
+                if ( 'Message' in data ) {
                     // Assume error message.
                     dataSearchFailed( searchSymbol )
                 } else {
                     console.log('Received data from worldtradingdata.com')
-                    const data = result[ mode ]
-                    renderOHLCData(`${searchSymbol} ${mode}`, data)
+                    renderOHLCData(data)
                 }
             })
     }
@@ -725,8 +626,6 @@ domElements.get( domElementIDs.dataSearchActivate )
         const searchSymbol = inputField.value
         searchData( searchSymbol )
     })
-
-//#endregion
 
 //#endregion
 
@@ -905,6 +804,8 @@ tickRSIThresholdHigh
 //#endregion
 
 //#region ----- Style ResultTables -----
+// TODO: Different formatter based on Axis zoom level.
+dateTimeFormatter = new Intl.DateTimeFormat( undefined, { day: 'numeric', month: 'long', year: 'numeric' } )
 
 const resultTableFormatter = (( tableContentBuilder, series, x, y ) => tableContentBuilder
     .addRow( dateTimeFormatter.format( getDateFromIndex( Math.round( x ) ) ) )
@@ -972,6 +873,56 @@ if ( seriesBollinger )
     seriesBollinger
         .setMouseInteractions( false )
         .setCursorEnabled( false )
+
+//#region ----- Add Vertical Gridlines that follow currently active AutoCursor around -----
+const tickWithoutLabelBuilder = tickWithoutBackgroundBuilder
+    .addStyler(( label ) => label
+        .setTextFillStyle( emptyFill )
+    )
+const verticalCursorGrids = charts.map(( chart ) => chart ?
+    // TODO: What is this TypeScript error? This should be the right builder.
+    chart.getDefaultAxisX().addCustomTick( <any>tickWithoutLabelBuilder ).dispose() :
+    undefined
+)
+// Update gridlines when mouse is moved.
+const updateVerticalCursorGrids = () => {
+    // Find Chart with active AutoCursor if any.
+    const activeAutoCursorChart = charts.reduce(( cursor, chart ) =>
+        cursor ? cursor : ( chart ? ( chart.getAutoCursor().isDisposed() ? undefined : chart ) : undefined ),
+        undefined
+    )
+    // Enable vertical cursor grids from Charts OTHER than the one with active AutoCursor.
+    for ( let i = 0; i < verticalCursorGrids.length; i ++ ) {
+        const grid = verticalCursorGrids[ i ]
+        if ( grid ) {
+            let hideGrid: boolean = true
+            if ( activeAutoCursorChart ) {
+                const chart = charts[ i ]
+                if ( chart === activeAutoCursorChart ) {
+                    // This is the Chart with active AutoCursor. We should hide the grid.
+                    hideGrid = true
+                } else {
+                    // This is not the Chart with active AutoCursor. We should enable the grid, and move its X location to same position as Cursor.
+                    hideGrid = false
+                    const cursor = activeAutoCursorChart.getAutoCursor()
+                    grid.setValue( translatePoint( cursor.getPosition(), (<any>cursor).scale, grid.scale ).x )
+                }
+            } 
+            if ( hideGrid === true )
+                grid.dispose()
+            else
+                grid.restore()
+        }
+    }
+}
+document.addEventListener( 'mousemove', () => {
+    // LCJS updated AutoCursor location on next animation frame, so we must do the same to be in sync.
+    // Note that this is a temporary implementation until AutoCursor events are added to LCJS.
+    requestAnimationFrame(updateVerticalCursorGrids)
+} )
+
+//#endregion
+
 //#endregion
 
 //#endregion
