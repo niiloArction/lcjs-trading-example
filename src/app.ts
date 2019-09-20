@@ -471,7 +471,6 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
             }
         }
     }
-    console.log(dataPointsPerDay)
 
     //#region ----- Render data -----
     const averagingFrameLength = dataRange === DataRange.Short ? 'averagingFrameLengthIntraday' : 'averagingFrameLength'
