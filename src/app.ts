@@ -512,7 +512,6 @@ const renderOHLCData = ( name: string, data: AppDataFormat ) => {
     if ( seriesRSI ) {
         // Compute RSI values from XOHLC values using data-analysis library.
         const rsiValues = relativeStrengthIndex( xohlcValues, chartConfigRSI.averagingFrameLength )
-        console.log(rsiValues)
         seriesRSI
             .clear()
             .add( rsiValues )
@@ -710,7 +709,6 @@ const searchData = ( searchSymbol: string ) => {
                 } else {
                     console.log('Received data from worldtradingdata.com')
                     const data = result[ mode ]
-                    console.log(Object.keys(data).length)
                     renderOHLCData(`${searchSymbol} ${mode}`, data)
                 }
             })
