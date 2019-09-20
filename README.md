@@ -12,7 +12,11 @@ More information about LightningChart<sup>&#174;</sup> JS can be found from our 
 
 ## Getting Started
 
-To view the example:
+The application is hosted at:
+
+https://niiloarction.github.io/lcjs-trading-example/
+
+To run the application locally with hot reload:
 
 1. Install Node.JS
 2. Run `npm install`
